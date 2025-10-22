@@ -22,7 +22,7 @@ import { parseExcelFile, isValidExcelFile } from '@/algorithms'
 
 interface ImportHistory {
   id: string
-  datasetId: string // 关联的dataset ID
+  datasetId: string // Associated dataset ID
   fileName: string
   timestamp: string
   papersCount: number
@@ -53,7 +53,7 @@ export default function DataImportPage() {
     return stored ? JSON.parse(stored) : []
   })
 
-  // 清理无效的历史记录
+  // Clean up invalid history records
   useEffect(() => {
     const stored = localStorage.getItem('import-history')
     if (!stored) return
@@ -63,12 +63,12 @@ export default function DataImportPage() {
       return record.datasetId && datasets.some(ds => ds.id === record.datasetId)
     })
 
-    // 如果清理后数量有变化，更新state和localStorage
+    // If count changed after cleanup, update state and localStorage
     if (validHistory.length !== history.length) {
       setImportHistory(validHistory)
       localStorage.setItem('import-history', JSON.stringify(validHistory))
     }
-  }, [datasets.length]) // 当datasets数量变化时执行清理
+  }, [datasets.length]) // Execute cleanup when datasets count changes
 
   const saveToHistory = (datasetId: string, fileName: string, stats: { papers: number; authors: number; warnings: number }) => {
     const newRecord: ImportHistory = {
@@ -86,23 +86,23 @@ export default function DataImportPage() {
   }
 
   const deleteHistoryItem = (id: string) => {
-    // 找到对应的历史记录
+    // Find corresponding history record
     const record = importHistory.find(item => item.id === id)
     if (record) {
-      // 同时删除store中的dataset
+      // Also delete dataset from store
       deleteDataset(record.datasetId)
     }
 
-    // 删除历史记录
+    // Delete history record
     const updated = importHistory.filter(item => item.id !== id)
     setImportHistory(updated)
     localStorage.setItem('import-history', JSON.stringify(updated))
   }
 
   const handleCardClick = (datasetId: string) => {
-    // 设置当前数据集
+    // Set current dataset
     setCurrentDataset(datasetId)
-    // 跳转到 papers 页面
+    // Navigate to papers page
     navigate('/papers')
   }
 

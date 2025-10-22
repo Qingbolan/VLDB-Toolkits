@@ -1,38 +1,38 @@
 /**
- * Excel 文件解析模块
- * 负责读取和解析 Excel 文件，提取数据集标签和数据行
+ * Excel file parsing module
+ * Responsible for reading and parsing Excel files, extracting dataset labels and data rows
  */
 
 import * as XLSX from 'xlsx'
 import type { ExcelRow } from '@/store/paper-types'
 
 export interface ParseResult {
-  label: string // 数据集标签
-  data: ExcelRow[] // 解析后的数据行
-  rowCount: number // 数据行数
+  label: string // Dataset label
+  data: ExcelRow[] // Parsed data rows
+  rowCount: number // Number of data rows
 }
 
 export interface ParseOptions {
   /**
-   * 查找表头行时扫描的最大行数
+   * Maximum number of rows to scan when searching for header row
    * @default 10
    */
   maxHeaderSearchRows?: number
 
   /**
-   * 表头必须包含的关键列名（用于识别表头行）
+   * Key column name that header must contain (for identifying header row)
    * @default "Paper ID"
    */
   headerKeyColumn?: string
 }
 
 /**
- * 解析 Excel 文件
+ * Parse Excel file
  *
- * @param file - 要解析的 File 对象
- * @param options - 解析选项
- * @returns Promise<ParseResult> - 解析结果
- * @throws Error - 如果文件为空、找不到表头或没有有效数据
+ * @param file - File object to parse
+ * @param options - Parse options
+ * @returns Promise<ParseResult> - Parse result
+ * @throws Error - If file is empty, header not found, or no valid data
  */
 export const parseExcelFile = async (
   file: File,
@@ -43,15 +43,15 @@ export const parseExcelFile = async (
     headerKeyColumn = 'Paper ID',
   } = options
 
-  // 读取文件
+  // Read file
   const buffer = await file.arrayBuffer()
 
-  // 解析 Excel
+  // Parse Excel
   const workbook = XLSX.read(buffer, { type: 'array' })
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
 
-  // 转换为二维数组
+  // Convert to 2D array
   const arrayData = XLSX.utils.sheet_to_json(worksheet, {
     header: 1,
     defval: '',
@@ -62,7 +62,7 @@ export const parseExcelFile = async (
     throw new Error('Excel file is empty or invalid')
   }
 
-  // 查找表头行（包含关键列名）
+  // Find header row (contains key column name)
   let headerRowIndex = -1
   for (let i = 0; i < Math.min(maxHeaderSearchRows, arrayData.length); i++) {
     const row = arrayData[i]
@@ -76,18 +76,18 @@ export const parseExcelFile = async (
     throw new Error(`Could not find header row (must contain "${headerKeyColumn}")`)
   }
 
-  // 提取数据集标签（如果存在且不是表头行）
+  // Extract dataset label (if exists and is not header row)
   let label = 'Untitled Dataset'
   if (headerRowIndex > 0 && arrayData[0] && arrayData[0][0]) {
-    // 第一行第一列作为label
+    // First row, first column as label
     label = String(arrayData[0][0]).trim()
   }
 
-  // 提取表头和数据行
+  // Extract header and data rows
   const headers = arrayData[headerRowIndex] as string[]
   const dataRows = arrayData.slice(headerRowIndex + 1)
 
-  // 转换为对象数组
+  // Convert to object array
   const jsonData: ExcelRow[] = dataRows
     .map(row => {
       const obj: any = {}
@@ -98,7 +98,7 @@ export const parseExcelFile = async (
       })
       return obj
     })
-    .filter(obj => Object.keys(obj).length > 0 && obj[headerKeyColumn]) // 过滤空行和没有关键列的行
+    .filter(obj => Object.keys(obj).length > 0 && obj[headerKeyColumn]) // Filter empty rows and rows without key column
 
   if (jsonData.length === 0) {
     throw new Error('No valid data found in Excel file')
@@ -112,20 +112,20 @@ export const parseExcelFile = async (
 }
 
 /**
- * 验证 Excel 文件格式
+ * Validate Excel file format
  *
- * @param file - 要验证的文件
- * @returns boolean - 是否为有效的 Excel 文件
+ * @param file - File to validate
+ * @returns boolean - Whether it is a valid Excel file
  */
 export const isValidExcelFile = (file: File): boolean => {
   return file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
 }
 
 /**
- * 读取 Excel 文件的基本信息（不进行完整解析）
+ * Read Excel file basic information (without full parsing)
  *
- * @param file - Excel 文件
- * @returns Promise<{ sheetNames: string[], estimatedRows: number }> - 文件信息
+ * @param file - Excel file
+ * @returns Promise<{ sheetNames: string[], estimatedRows: number }> - File information
  */
 export const getExcelFileInfo = async (file: File): Promise<{
   sheetNames: string[]
@@ -137,7 +137,7 @@ export const getExcelFileInfo = async (file: File): Promise<{
   const sheetNames = workbook.SheetNames
   const firstSheet = workbook.Sheets[sheetNames[0]]
 
-  // 获取范围信息
+  // Get range information
   const range = XLSX.utils.decode_range(firstSheet['!ref'] || 'A1')
   const estimatedRows = range.e.r - range.s.r + 1
 

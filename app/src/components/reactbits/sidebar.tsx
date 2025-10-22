@@ -102,7 +102,7 @@ export function RBSidebarToggleFloating() {
     console.log('Toggle function called, new state should be:', !collapsed)
   }
 
-  // 只在展开状态下显示箭头（用于收起）
+  // Only show arrow in expanded state (for collapsing)
   if (collapsed) {
     return null
   }

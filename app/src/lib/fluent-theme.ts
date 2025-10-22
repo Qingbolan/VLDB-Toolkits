@@ -6,14 +6,14 @@ import {
   type Theme,
 } from "@fluentui/react-components"
 
-// 定义品牌色调色板（基于我们的主色调）
+// Define brand color palette (based on our primary color)
 const brandColors: BrandVariants = {
   10: "#060315",
   20: "#15103F",
   30: "#24185C",
   40: "#331F78",
   50: "#422694",
-  60: "#5432A8", // 我们的主色 primary
+  60: "#5432A8", // Our primary color
   70: "#6F49C5",
   80: "#8A64D9",
   90: "#A57FED",
@@ -26,17 +26,17 @@ const brandColors: BrandVariants = {
   160: "#FFFFFF",
 }
 
-// 创建亮色主题
+// Create light theme
 export const lightTheme: Theme = {
   ...createLightTheme(brandColors),
 }
 
-// 创建暗色主题
+// Create dark theme
 export const darkTheme: Theme = {
   ...createDarkTheme(brandColors),
 }
 
-// 添加 Acrylic 和 Mica 自定义 tokens
+// Add custom Acrylic and Mica tokens
 export const acrylicTokens = {
   backdropFilter: "blur(30px) saturate(180%)",
   backgroundColor: "rgba(255, 255, 255, 0.7)",
@@ -49,7 +49,7 @@ export const micaTokens = {
   border: "1px solid rgba(255, 255, 255, 0.1)",
 }
 
-// Reveal 效果 tokens
+// Reveal effect tokens
 export const revealTokens = {
   transitionDuration: "167ms",
   transitionTimingFunction: "cubic-bezier(0.2, 0, 0, 1)",

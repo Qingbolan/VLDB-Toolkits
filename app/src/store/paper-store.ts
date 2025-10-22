@@ -1,85 +1,86 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Paper, AuthorStats, AuthorMerge, ExcelRow, Dataset } from './paper-types'
-import { processExcelData, calculateAuthorStats, markPaperWarnings } from '@/algorithms'
+import { processExcelData, calculateAuthorStats, markPaperWarnings, applyAuthorMerges } from '@/algorithms'
 
 /**
- * 论文和作者数据管理 Store
+ * Paper and Author Data Management Store
  */
 interface PaperStore {
-  // 数据
+  // Data
   datasets: Dataset[]
-  currentDatasetId: string // "all" 或具体的dataset id
-  papers: Paper[] // 当前选中数据集的papers（计算属性）
-  authors: Map<string, AuthorStats> // 当前选中数据集的authors（计算属性）
-  authorMerges: AuthorMerge[] // 人工标记的作者合并记录
+  currentDatasetId: string // "all" or specific dataset id
+  papers: Paper[] // Papers from currently selected dataset (computed property)
+  authors: Map<string, AuthorStats> // Authors from currently selected dataset (computed property)
+  authorMerges: AuthorMerge[] // Manually marked author merge records
 
-  // 加载状态
+  // Loading state
   isLoading: boolean
   error: string | null
 
-  // 数据集操作
+  // Dataset operations
   getDatasets: () => Dataset[]
   setCurrentDataset: (datasetId: string) => void
   deleteDataset: (datasetId: string) => void
 
-  // 数据导入
-  importExcelData: (rows: ExcelRow[], label: string, fileName: string) => string // 返回datasetId
+  // Data import
+  importExcelData: (rows: ExcelRow[], label: string, fileName: string) => string // Returns datasetId
 
-  // 论文操作
+  // Paper operations
   getPaperById: (paperId: number) => Paper | undefined
   getPapersWithWarning: () => Paper[]
 
-  // 作者操作
+  // Author operations
   getAuthorByEmail: (email: string) => AuthorStats | undefined
   getAuthorsWithWarning: () => AuthorStats[]
   getAuthorsWithEmailConflict: () => AuthorStats[]
   getAllAuthors: () => AuthorStats[]
 
-  // 作者合并操作
+  // Author merge operations
   mergeAuthors: (merge: Omit<AuthorMerge, 'id' | 'createdAt'>) => void
   unmergeAuthors: (mergeId: string) => void
+  removeAuthorFromMerge: (mergeId: string, emailToRemove: string) => void
   updateAuthorMerge: (mergeId: string, updates: Partial<AuthorMerge>) => void
 
-  // 更新作者信息（手动修正）
+  // Update author information (manual correction)
   updateAuthorEmail: (oldEmail: string, newEmail: string) => void
   updateAuthorName: (email: string, newName: string) => void
 
-  // 工具方法
+  // Utility methods
   reset: () => void
 }
 
 
 /**
- * 合并多个数据集的papers和authors（用于"All"视图）
+ * Merge papers and authors from multiple datasets (for "All" view)
  */
 const mergeDatasets = (datasets: Dataset[]): { papers: Paper[], authors: Map<string, AuthorStats> } => {
   if (datasets.length === 0) {
     return { papers: [], authors: new Map() }
   }
 
-  // 合并所有papers
+  // Merge all papers
   const allPapers: Paper[] = []
   datasets.forEach(ds => {
     allPapers.push(...ds.papers)
   })
 
-  // 重新计算作者统计（因为可能跨数据集）
+  // Recalculate author statistics (since they may span datasets)
   const authors = calculateAuthorStats(allPapers)
 
-  // 重新标记warnings
+  // Re-mark warnings
   const papersWithWarnings = markPaperWarnings(allPapers, authors)
 
   return { papers: papersWithWarnings, authors }
 }
 
 /**
- * 创建Paper Store
+ * Create Paper Store
  */
 export const usePaperStore = create<PaperStore>()(
   persist(
     (set, get) => ({
-      // 初始状态
+      // Initial state
       datasets: [],
       currentDatasetId: 'all',
       papers: [],
@@ -88,53 +89,69 @@ export const usePaperStore = create<PaperStore>()(
       isLoading: false,
       error: null,
 
-      // 获取所有数据集
+      // Get all datasets
       getDatasets: () => {
         return get().datasets
       },
 
-      // 切换当前数据集
+      // Switch current dataset
       setCurrentDataset: (datasetId: string) => {
-        const { datasets } = get()
+        const { datasets, authorMerges } = get()
 
         if (datasetId === 'all') {
-          // 合并所有数据集
-          const { papers, authors } = mergeDatasets(datasets)
+          // Merge all datasets
+          let { papers, authors } = mergeDatasets(datasets)
+
+          // Apply author merges
+          authors = applyAuthorMerges(authors, authorMerges)
+
+          // Re-mark paper warnings (considering merges)
+          papers = markPaperWarnings(papers, authors, authorMerges)
+
           set({ currentDatasetId: 'all', papers, authors })
         } else {
-          // 查找特定数据集
+          // Find specific dataset
           const dataset = datasets.find(ds => ds.id === datasetId)
           if (dataset) {
+            let authors = dataset.authors
+            let papers = dataset.papers
+
+            // Apply author merges
+            authors = applyAuthorMerges(authors, authorMerges)
+
+            // Re-mark paper warnings (considering merges)
+            papers = markPaperWarnings(papers, authors, authorMerges)
+
             set({
               currentDatasetId: datasetId,
-              papers: dataset.papers,
-              authors: dataset.authors,
+              papers,
+              authors,
             })
           }
         }
       },
 
-      // 删除数据集
+      // Delete dataset
       deleteDataset: (datasetId: string) => {
         const { datasets, currentDatasetId } = get()
         const newDatasets = datasets.filter(ds => ds.id !== datasetId)
         set({ datasets: newDatasets })
 
-        // 如果删除的是当前数据集，切换到"all"
+        // If deleted dataset is current, switch to "all"
         if (currentDatasetId === datasetId) {
           get().setCurrentDataset('all')
         }
       },
 
-      // 导入Excel数据
+      // Import Excel data
       importExcelData: (rows: ExcelRow[], label: string, fileName: string) => {
         try {
           set({ isLoading: true, error: null })
 
-          // 使用算法模块处理数据
+          // Process data using algorithm module
           const { papers: papersWithWarnings, authors } = processExcelData(rows)
 
-          // 创建新数据集
+          // Create new dataset
           const newDataset: Dataset = {
             id: `dataset-${Date.now()}`,
             label,
@@ -144,11 +161,11 @@ export const usePaperStore = create<PaperStore>()(
             authors,
           }
 
-          // 添加到datasets
+          // Add to datasets
           const newDatasets = [...get().datasets, newDataset]
           set({ datasets: newDatasets, isLoading: false })
 
-          // 自动切换到新导入的数据集
+          // Auto switch to newly imported dataset
           get().setCurrentDataset(newDataset.id)
 
           return newDataset.id
@@ -161,37 +178,37 @@ export const usePaperStore = create<PaperStore>()(
         }
       },
 
-      // 获取单个论文
+      // Get single paper
       getPaperById: (paperId: number) => {
         return get().papers.find(p => p.paperId === paperId)
       },
 
-      // 获取有warning的论文
+      // Get papers with warning
       getPapersWithWarning: () => {
         return get().papers.filter(p => p.hasWarning)
       },
 
-      // 获取作者信息
+      // Get author info
       getAuthorByEmail: (email: string) => {
         return get().authors.get(email)
       },
 
-      // 获取有warning的作者
+      // Get authors with warning
       getAuthorsWithWarning: () => {
         return Array.from(get().authors.values()).filter(a => a.hasWarning)
       },
 
-      // 获取有email冲突的作者
+      // Get authors with email conflict
       getAuthorsWithEmailConflict: () => {
         return Array.from(get().authors.values()).filter(a => a.hasEmailConflict)
       },
 
-      // 获取所有作者
+      // Get all authors
       getAllAuthors: () => {
         return Array.from(get().authors.values())
       },
 
-      // 合并作者
+      // Merge authors
       mergeAuthors: (merge) => {
         const newMerge: AuthorMerge = {
           ...merge,
@@ -203,17 +220,78 @@ export const usePaperStore = create<PaperStore>()(
           authorMerges: [...get().authorMerges, newMerge],
         })
 
-        // TODO: 应用合并逻辑，重新计算authors
+        // Reset current dataset to apply merge
+        const currentDatasetId = get().currentDatasetId
+        get().setCurrentDataset(currentDatasetId)
       },
 
-      // 取消合并
+      // Unmerge authors
       unmergeAuthors: (mergeId: string) => {
         set({
           authorMerges: get().authorMerges.filter(m => m.id !== mergeId),
         })
+
+        // Reset current dataset to remove merge effect
+        const currentDatasetId = get().currentDatasetId
+        get().setCurrentDataset(currentDatasetId)
       },
 
-      // 更新合并记录
+      // Remove single author from merge group
+      removeAuthorFromMerge: (mergeId: string, emailToRemove: string) => {
+        const merge = get().authorMerges.find(m => m.id === mergeId)
+        if (!merge) return
+
+        // If removing primary email
+        if (merge.primaryEmail === emailToRemove) {
+          // If no other authors, delete entire merge
+          if (merge.mergedEmails.length === 0) {
+            get().unmergeAuthors(mergeId)
+            return
+          }
+
+          // Promote first merged as new primary
+          const newPrimaryEmail = merge.mergedEmails[0]
+          const newPrimaryName = merge.mergedNames[0]
+
+          const updatedMerge = {
+            ...merge,
+            primaryEmail: newPrimaryEmail,
+            primaryName: newPrimaryName,
+            mergedEmails: merge.mergedEmails.slice(1),
+            mergedNames: merge.mergedNames.slice(1),
+          }
+
+          set({
+            authorMerges: get().authorMerges.map(m => m.id === mergeId ? updatedMerge : m),
+          })
+        } else {
+          // Removing a merged email
+          const index = merge.mergedEmails.indexOf(emailToRemove)
+          if (index === -1) return
+
+          // If only primary left after removal, delete entire merge
+          if (merge.mergedEmails.length === 1) {
+            get().unmergeAuthors(mergeId)
+            return
+          }
+
+          const updatedMerge = {
+            ...merge,
+            mergedEmails: merge.mergedEmails.filter((_, i) => i !== index),
+            mergedNames: merge.mergedNames.filter((_, i) => i !== index),
+          }
+
+          set({
+            authorMerges: get().authorMerges.map(m => m.id === mergeId ? updatedMerge : m),
+          })
+        }
+
+        // Reset current dataset to apply changes
+        const currentDatasetId = get().currentDatasetId
+        get().setCurrentDataset(currentDatasetId)
+      },
+
+      // Update merge record
       updateAuthorMerge: (mergeId: string, updates: Partial<AuthorMerge>) => {
         set({
           authorMerges: get().authorMerges.map(m =>
@@ -222,7 +300,7 @@ export const usePaperStore = create<PaperStore>()(
         })
       },
 
-      // 更新作者email
+      // Update author email
       updateAuthorEmail: (oldEmail: string, newEmail: string) => {
         const author = get().authors.get(oldEmail)
         if (!author) return
@@ -234,7 +312,7 @@ export const usePaperStore = create<PaperStore>()(
         set({ authors })
       },
 
-      // 更新作者名
+      // Update author name
       updateAuthorName: (email: string, newName: string) => {
         const author = get().authors.get(email)
         if (!author) return
@@ -245,7 +323,7 @@ export const usePaperStore = create<PaperStore>()(
         set({ authors })
       },
 
-      // 重置
+      // Reset
       reset: () => {
         set({
           datasets: [],
@@ -261,7 +339,7 @@ export const usePaperStore = create<PaperStore>()(
     {
       name: 'authcheck-paper-storage',
       storage: createJSONStorage(() => localStorage),
-      // Map需要特殊处理序列化
+      // Map requires special serialization handling
       partialize: (state) => ({
         datasets: state.datasets.map(ds => ({
           ...ds,
@@ -274,7 +352,7 @@ export const usePaperStore = create<PaperStore>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // 迁移旧数据格式：如果有papers但没有datasets，创建一个默认数据集
+          // Migrate old data format: if has papers but no datasets, create a default dataset
           // @ts-ignore
           if (state.papers && state.papers.length > 0 && (!state.datasets || state.datasets.length === 0)) {
             console.log('Migrating old data format to new dataset structure')
@@ -302,7 +380,7 @@ export const usePaperStore = create<PaperStore>()(
             state.authors = oldAuthors
           }
 
-          // 恢复datasets中的authors Map
+          // Restore authors Map in datasets
           if (Array.isArray(state.datasets)) {
             // @ts-ignore
             state.datasets = state.datasets.map(ds => ({
@@ -314,7 +392,7 @@ export const usePaperStore = create<PaperStore>()(
             state.datasets = []
           }
 
-          // 恢复当前的authors Map
+          // Restore current authors Map
           if (Array.isArray(state.authors)) {
             // @ts-ignore
             state.authors = new Map(state.authors)
@@ -323,14 +401,14 @@ export const usePaperStore = create<PaperStore>()(
             state.authors = new Map()
           }
 
-          // 确保papers是数组
+          // Ensure papers is array
           // @ts-ignore
           if (!Array.isArray(state.papers)) {
             // @ts-ignore
             state.papers = []
           }
 
-          // 确保currentDatasetId存在
+          // Ensure currentDatasetId exists
           // @ts-ignore
           if (!state.currentDatasetId) {
             // @ts-ignore

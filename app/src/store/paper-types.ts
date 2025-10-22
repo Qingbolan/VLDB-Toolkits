@@ -1,8 +1,8 @@
 /**
- * 论文和作者数据模型
+ * Paper and author data models
  */
 
-// 论文数据模型
+// Paper data model
 export interface Paper {
   paperId: number
   originalPaperId: string
@@ -10,61 +10,101 @@ export interface Paper {
   abstract: string
   primaryContactAuthorName: string
   primaryContactAuthorEmail: string
-  authorNames: string[] // 作者姓名列表（格式化后）
-  authorEmails: string[] // 作者邮箱列表
-  correspondingAuthorIndices: number[] // 通讯作者的索引位置
+  authorNames: string[] // Author name list (formatted)
+  authorEmails: string[] // Author email list
+  authorOrganizations: string[] // Author organization list
+  correspondingAuthorIndices: number[] // Index positions of corresponding authors
   trackName: string
   primarySubjectArea: string
   secondarySubjectAreas: string[]
   status: string
   created: string
   lastModified: string
-  // 计算字段
-  hasWarning: boolean // 是否包含超quota的作者
-  warningAuthors: AuthorWarning[] // 超quota的作者信息
+
+  // Review related
+  conflicts: string
+  assigned: string
+  completed: string
+  percentCompleted: string
+  bids: string
+  discussion: string
+
+  // Feedback and submission status
+  requestedForAuthorFeedback: string
+  authorFeedbackSubmitted: string
+  requestedForCameraReady: string
+  cameraReadySubmitted: string
+  requestedForPresentation: string
+
+  // File information
+  files: string
+  numberOfFiles: string
+  supplementaryFiles: string
+  numberOfSupplementaryFiles: string
+
+  // Reviewer information
+  reviewers: string
+  reviewerEmails: string
+  metaReviewers: string
+  metaReviewerEmails: string
+  seniorMetaReviewers: string
+  seniorMetaReviewerEmails: string
+
+  // Rating statistics
+  reviewMinOverallRating: string
+  reviewMaxOverallRating: string
+  reviewAvgOverallRating: string
+  reviewSpreadOverallRating: string
+
+  // Chair notes
+  chairNote: string
+
+  // Computed fields
+  hasWarning: boolean // Whether contains authors exceeding quota
+  warningAuthors: AuthorWarning[] // Authors exceeding quota
 }
 
-// 作者警告信息
+// Author warning information
 export interface AuthorWarning {
   name: string
   email: string
-  paperCount: number // 该作者的总文章数
-  paperRank: number // 该文章在作者的文章中的排名（按paperId排序）
+  paperCount: number // Total paper count for this author
+  paperRank: number // Rank of this paper among author's papers (sorted by paperId)
 }
 
-// 作者统计信息
+// Author statistics information
 export interface AuthorStats {
-  id: string // 唯一ID (email作为key)
+  id: string // Unique ID (email as key)
   name: string
   email: string
   paperCount: number
-  paperIds: number[] // 该作者的所有论文ID（按ID排序）
-  organization?: string // 从备注或其他字段提取
-  hasWarning: boolean // 是否超过quota (>2篇)
-  // 用于标记问题
-  hasEmailConflict: boolean // 是否存在一个email对应多个作者名
-  hasPotentialDuplicate: boolean // 是否可能是重复作者（人工标记）
+  paperIds: number[] // All paper IDs for this author (sorted by ID)
+  organization?: string // Extracted from notes or other fields
+  hasWarning: boolean // Whether exceeds quota (>2 papers)
+  // Used to mark issues
+  hasEmailConflict: boolean // Whether one email corresponds to multiple author names
+  hasPotentialDuplicate: boolean // Whether potentially a duplicate author (manually marked)
 }
 
-// Email到作者名的映射（用于检测冲突）
+// Email to author name mapping (for conflict detection)
 export interface EmailAuthorMapping {
   email: string
-  authorNames: Set<string> // 使用这个email的所有作者名
-  hasConflict: boolean // 是否存在多个不同的作者名
+  authorNames: Set<string> // All author names using this email
+  hasConflict: boolean // Whether multiple different author names exist
 }
 
-// 作者合并记录（用于人工标记作者为同一人）
+// Author merge record (for manually marking authors as the same person)
 export interface AuthorMerge {
   id: string
-  primaryEmail: string // 主要使用的email
-  primaryName: string // 主要使用的姓名
-  mergedEmails: string[] // 合并的其他email
-  mergedNames: string[] // 合并的其他姓名
-  note: string // 备注说明
+  primaryEmail: string // Primary email to use
+  primaryName: string // Primary name to use
+  mergedEmails: string[] // Other merged emails
+  mergedNames: string[] // Other merged names
+  note: string // Note/description
   createdAt: string
 }
 
-// Excel原始数据行
+// Excel raw data row
 export interface ExcelRow {
   'Paper ID': number
   'Original Paper ID': string
@@ -74,22 +114,22 @@ export interface ExcelRow {
   'Abstract': string
   'Primary Contact Author Name': string
   'Primary Contact Author Email': string
-  'Authors': string // 可能是分隔符分隔的字符串
-  'Author Names': string // 可能是分隔符分隔的字符串
-  'Author Emails': string // 可能是分隔符分隔的字符串
+  'Authors': string // May be delimiter-separated string
+  'Author Names': string // May be delimiter-separated string
+  'Author Emails': string // May be delimiter-separated string
   'Track Name': string
   'Primary Subject Area': string
   'Secondary Subject Areas': string
   'Status': string
-  [key: string]: any // 其他字段
+  [key: string]: any // Other fields
 }
 
-// 数据集
+// Dataset
 export interface Dataset {
-  id: string // 唯一ID
-  label: string // 数据集标签，如 "Research -> October 2025"
-  fileName: string // 原始文件名
-  importedAt: string // 导入时间
+  id: string // Unique ID
+  label: string // Dataset label, e.g. "Research -> October 2025"
+  fileName: string // Original file name
+  importedAt: string // Import time
   papers: Paper[]
   authors: Map<string, AuthorStats>
 }

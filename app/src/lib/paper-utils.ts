@@ -1,28 +1,28 @@
 /**
- * 论文和作者相关的工具函数
+ * Paper and author utility functions
  */
 
 import type { Paper, AuthorStats, AuthorWarning } from '@/store/paper-types'
 
 /**
- * 获取论文的warning级别
+ * Get paper warning level
  */
 export const getPaperWarningLevel = (paper: Paper): 'none' | 'warning' | 'critical' => {
   if (!paper.hasWarning) return 'none'
 
-  // 如果有多个作者超quota，标记为critical
+  // If multiple authors exceed quota, mark as critical
   if (paper.warningAuthors.length > 1) return 'critical'
 
   return 'warning'
 }
 
 /**
- * 获取作者的warning级别
+ * Get author warning level
  */
 export const getAuthorWarningLevel = (author: AuthorStats): 'none' | 'warning' | 'critical' => {
   if (!author.hasWarning && !author.hasEmailConflict) return 'none'
 
-  // Email冲突且论文超过2篇，标记为critical
+  // Email conflict and papers exceed 2, mark as critical
   if (author.hasEmailConflict && author.hasWarning) return 'critical'
 
   if (author.hasWarning || author.hasEmailConflict) return 'warning'
@@ -31,7 +31,7 @@ export const getAuthorWarningLevel = (author: AuthorStats): 'none' | 'warning' |
 }
 
 /**
- * 格式化作者列表显示
+ * Format author list display
  */
 export const formatAuthorList = (
   authorNames: string[],
@@ -51,7 +51,7 @@ export const formatAuthorList = (
 }
 
 /**
- * 获取论文的warning消息
+ * Get paper warning message
  */
 export const getPaperWarningMessage = (paper: Paper): string => {
   if (!paper.hasWarning) return ''
@@ -67,7 +67,7 @@ export const getPaperWarningMessage = (paper: Paper): string => {
 }
 
 /**
- * 获取作者的warning消息
+ * Get author warning message
  */
 export const getAuthorWarningMessage = (author: AuthorStats): string => {
   const messages: string[] = []
@@ -88,7 +88,7 @@ export const getAuthorWarningMessage = (author: AuthorStats): string => {
 }
 
 /**
- * 搜索论文（标题、摘要、作者）
+ * Search papers (title, abstract, authors)
  */
 export const searchPapers = (papers: Paper[], query: string): Paper[] => {
   if (!query.trim()) return papers
@@ -107,7 +107,7 @@ export const searchPapers = (papers: Paper[], query: string): Paper[] => {
 }
 
 /**
- * 搜索作者
+ * Search authors
  */
 export const searchAuthors = (authors: AuthorStats[], query: string): AuthorStats[] => {
   if (!query.trim()) return authors
@@ -124,7 +124,7 @@ export const searchAuthors = (authors: AuthorStats[], query: string): AuthorStat
 }
 
 /**
- * 过滤论文
+ * Filter papers
  */
 export const filterPapers = (
   papers: Paper[],
@@ -152,14 +152,18 @@ export const filterPapers = (
 }
 
 /**
- * 过滤作者
+ * Filter authors
  */
 export const filterAuthors = (
   authors: AuthorStats[],
   filters: {
     showWarningOnly?: boolean
     showEmailConflictOnly?: boolean
+    showDuplicateNameOnly?: boolean
+    showLinkedOnly?: boolean
     minPapers?: number
+    duplicateNameEmails?: Set<string> // Email set of authors with duplicate names
+    linkedEmails?: Set<string> // Email set of linked authors
   }
 ): AuthorStats[] => {
   let filtered = [...authors]
@@ -172,6 +176,14 @@ export const filterAuthors = (
     filtered = filtered.filter(a => a.hasEmailConflict)
   }
 
+  if (filters.showDuplicateNameOnly && filters.duplicateNameEmails) {
+    filtered = filtered.filter(a => filters.duplicateNameEmails!.has(a.email))
+  }
+
+  if (filters.showLinkedOnly && filters.linkedEmails) {
+    filtered = filtered.filter(a => filters.linkedEmails!.has(a.email))
+  }
+
   if (filters.minPapers) {
     filtered = filtered.filter(a => a.paperCount >= filters.minPapers)
   }
@@ -180,7 +192,7 @@ export const filterAuthors = (
 }
 
 /**
- * 排序论文
+ * Sort papers
  */
 export const sortPapers = (
   papers: Paper[],
@@ -204,7 +216,7 @@ export const sortPapers = (
         comparison = new Date(a.created).getTime() - new Date(b.created).getTime()
         break
       case 'warning':
-        // Warning的论文排在前面
+        // Papers with warnings come first
         comparison = (b.hasWarning ? 1 : 0) - (a.hasWarning ? 1 : 0)
         break
     }
@@ -216,7 +228,7 @@ export const sortPapers = (
 }
 
 /**
- * 排序作者
+ * Sort authors
  */
 export const sortAuthors = (
   authors: AuthorStats[],
@@ -250,7 +262,7 @@ export const sortAuthors = (
 }
 
 /**
- * 导出CSV数据（用于下载）
+ * Export CSV data (for download)
  */
 export const exportPapersToCSV = (papers: Paper[]): string => {
   const headers = [
@@ -258,28 +270,39 @@ export const exportPapersToCSV = (papers: Paper[]): string => {
     'Title',
     'Authors',
     'Emails',
+    'Organizations',
+    'Corresponding Authors',
     'Has Warning',
     'Warning Authors',
     'Status',
     'Track',
   ]
 
-  const rows = papers.map(paper => [
-    paper.paperId,
-    `"${paper.title.replace(/"/g, '""')}"`,
-    `"${paper.authorNames.join('; ')}"`,
-    `"${paper.authorEmails.join('; ')}"`,
-    paper.hasWarning ? 'Yes' : 'No',
-    `"${paper.warningAuthors.map(a => a.name).join('; ')}"`,
-    paper.status,
-    paper.trackName,
-  ])
+  const rows = papers.map(paper => {
+    // Mark corresponding authors
+    const correspondingAuthors = paper.authorNames
+      .filter((_, idx) => paper.correspondingAuthorIndices.includes(idx))
+      .join('; ')
+
+    return [
+      paper.paperId,
+      `"${paper.title.replace(/"/g, '""')}"`,
+      `"${paper.authorNames.join('; ')}"`,
+      `"${paper.authorEmails.join('; ')}"`,
+      `"${paper.authorOrganizations.join('; ')}"`,
+      `"${correspondingAuthors}"`,
+      paper.hasWarning ? 'Yes' : 'No',
+      `"${paper.warningAuthors.map(a => a.name).join('; ')}"`,
+      paper.status,
+      paper.trackName,
+    ]
+  })
 
   return [headers, ...rows].map(row => row.join(',')).join('\n')
 }
 
 /**
- * 导出作者CSV数据
+ * Export authors CSV data
  */
 export const exportAuthorsToCSV = (authors: AuthorStats[]): string => {
   const headers = [

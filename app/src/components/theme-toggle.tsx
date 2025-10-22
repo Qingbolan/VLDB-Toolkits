@@ -89,7 +89,7 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
     )
   }
 
-  // 如果是收缩状态，只显示一个切换按钮
+  // If collapsed, only show a toggle button
   if (collapsed) {
     const toggleTheme = () => {
       setTheme(theme === "light" ? "dark" : "light")
@@ -113,7 +113,7 @@ export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
     )
   }
 
-  // 展开状态显示两个按钮
+  // Expanded state shows two buttons
   return (
     <div className="space-y-2">
       <div className="flex gap-2">

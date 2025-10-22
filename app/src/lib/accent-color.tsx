@@ -61,10 +61,17 @@ export function AccentColorProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMounted(true)
+    // 首先检查用户是否已经选择过颜色（优先级最高）
     const stored = localStorage.getItem("accent-color") as AccentColorKey
     if (stored && ACCENT_COLORS[stored]) {
       setAccentColorState(stored)
+      return
     }
+
+    // 如果没有用户选择，使用默认紫色
+    // 注：浏览器目前没有标准 API 来获取系统的 accent color
+    // 所以我们使用紫色作为默认值
+    setAccentColorState("purple")
   }, [])
 
   useEffect(() => {

@@ -1,14 +1,14 @@
 /**
- * 算法模块统一导出
+ * Algorithm Module Unified Exports
  *
- * 该模块整合了所有与 Excel 文件处理和数据分析相关的算法，包括：
- * - Excel 文件解析
- * - 数据处理和转换
- * - 作者统计和分析
- * - 论文警告标记
+ * This module integrates all algorithms related to Excel file processing and data analysis, including:
+ * - Excel file parsing
+ * - Data processing and transformation
+ * - Author statistics and analysis
+ * - Paper warning marking
  */
 
-// Excel 解析相关
+// Excel parsing related
 export {
   parseExcelFile,
   isValidExcelFile,
@@ -17,13 +17,15 @@ export {
   type ParseOptions,
 } from './excel-parser'
 
-// 数据处理相关
+// Data processing related
 export {
   parseDelimitedString,
   formatAuthorName,
   parseAuthorNames,
   parseAuthorEmails,
+  parseAuthorOrganizations,
   calculateAuthorStats,
+  applyAuthorMerges,
   markPaperWarnings,
   convertExcelRowToPaper,
   processExcelData,

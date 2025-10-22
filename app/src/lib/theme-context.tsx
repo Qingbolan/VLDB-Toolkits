@@ -16,7 +16,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark">("light")
 
   React.useEffect(() => {
-    // 从 localStorage 读取主题设置
+    // Read theme setting from localStorage
     const stored = localStorage.getItem("theme") as Theme
     if (stored && ["light", "dark", "system"].includes(stored)) {
       setThemeState(stored)
@@ -37,32 +37,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       effectiveTheme = theme
     }
 
-    // 使用 View Transition API 实现流畅切换（如果浏览器支持）
+    // Use View Transition API for smooth switching (if browser supports it)
     const supportsViewTransitions = 'startViewTransition' in document
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     if (supportsViewTransitions && !prefersReducedMotion) {
-      // @ts-ignore - View Transition API 还未完全支持类型
+      // @ts-ignore - View Transition API types not fully supported yet
       document.startViewTransition(() => {
         root.classList.remove("light", "dark")
         root.classList.add(effectiveTheme)
         setResolvedTheme(effectiveTheme)
       })
     } else {
-      // 降级方案
+      // Fallback solution
       root.classList.remove("light", "dark")
       root.classList.add(effectiveTheme)
       setResolvedTheme(effectiveTheme)
     }
 
-    // 设置 color-scheme 属性提升性能
+    // Set color-scheme property for better performance
     root.style.colorScheme = effectiveTheme
 
-    // 保存到 localStorage
+    // Save to localStorage
     localStorage.setItem("theme", theme)
   }, [theme])
 
-  // 监听系统主题变化
+  // Listen for system theme changes
   React.useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
 

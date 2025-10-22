@@ -12,6 +12,7 @@ import { AntdProvider } from '@/components/providers/antd-provider'
 // AuthCheck pages
 import DataImportPage from '@/pages/DataImportPage'
 import PapersPage from '@/pages/PapersPage'
+import PaperDetailPage from '@/pages/PaperDetailPage'
 import AuthorsPage from '@/pages/AuthorsPage'
 
 function AppLayout({ children }: { children: React.ReactNode }) {
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="/" element={<DataImportPage />} />
           <Route path="/import" element={<DataImportPage />} />
           <Route path="/papers" element={<PapersPage />} />
+          <Route path="/papers/:paperId" element={<PaperDetailPage />} />
           <Route path="/authors" element={<AuthorsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
