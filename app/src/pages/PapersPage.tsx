@@ -30,7 +30,8 @@ import {
 } from '../components/ui/tooltip';
 import { AlertTriangle, FileText, Search, Download, Database, Link2 } from 'lucide-react';
 import { PageHeader } from '../components/page-header';
-import { filterPapers, exportPapersToCSV } from '../lib/paper-utils';
+import { filterPapers } from '../lib/paper-utils';
+import { exportPapersToExcel } from '@/algorithms';
 
 export default function PapersPage() {
   const navigate = useNavigate();
@@ -108,18 +109,22 @@ export default function PapersPage() {
   }, [papers, searchQuery, showWarningOnly, showLinkedAuthorsOnly, isAuthorLinked]);
 
   // Handle export to CSV
-  const handleExportCSV = () => {
-    const csv = exportPapersToCSV(filteredPapers);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const handleExportExcel = () => {
+    // 使用 algorithms 中的导出函数
+    const excelBuffer = exportPapersToExcel(filteredPapers, authorMerges);
+    const blob = new Blob([excelBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
 
     link.setAttribute('href', url);
-    link.setAttribute('download', `papers_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `papers_export_${new Date().toISOString().split('T')[0]}.xlsx`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // If no datasets exist at all
@@ -260,11 +265,11 @@ export default function PapersPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleExportCSV}
+            onClick={handleExportExcel}
             disabled={filteredPapers.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            Export Excel
           </Button>
         </div>
       </div>

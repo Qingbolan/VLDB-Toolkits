@@ -30,3 +30,8 @@ export {
   convertExcelRowToPaper,
   processExcelData,
 } from './data-processor'
+
+// Excel export related
+export {
+  exportPapersToExcel,
+} from './excel-exporter'
