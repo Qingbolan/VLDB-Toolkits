@@ -14,12 +14,22 @@ import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
-import { AlertTriangle, FileText, Search, Download } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import { AlertTriangle, FileText, Search, Download, Database } from 'lucide-react';
 import { PageHeader } from '../components/page-header';
 
 export default function PapersPage() {
   const navigate = useNavigate();
   const papers = usePaperStore((state) => state.papers);
+  const datasets = usePaperStore((state) => state.getDatasets());
+  const currentDatasetId = usePaperStore((state) => state.currentDatasetId);
+  const setCurrentDataset = usePaperStore((state) => state.setCurrentDataset);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Filter papers
@@ -37,8 +47,8 @@ export default function PapersPage() {
     });
   }, [papers, searchQuery]);
 
-  // If no data exists
-  if (papers.length === 0) {
+  // If no datasets exist at all
+  if (datasets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
         <div className="text-center space-y-4">
@@ -59,11 +69,31 @@ export default function PapersPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto px-8 py-6 space-y-6">
       <PageHeader
         title="Paper Submissions"
         description="Browse all paper submissions and identify potential quota violations"
-      />
+      >
+        {/* Dataset Selector */}
+        {datasets.length > 0 && (
+          <div className="flex items-center gap-3">
+            <Database className="h-5 w-5 text-muted-foreground" />
+            <Select value={currentDatasetId} onValueChange={setCurrentDataset}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="Select dataset" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Datasets</SelectItem>
+                {datasets.map((dataset) => (
+                  <SelectItem key={dataset.id} value={dataset.id}>
+                    {dataset.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </PageHeader>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -164,12 +194,24 @@ export default function PapersPage() {
                             const isWarning = paper.warningAuthors.some(
                               (wa) => wa.email === email
                             );
+                            const isCorresponding = paper.correspondingAuthorIndices.includes(idx);
+
+                            // 确定 Badge 的样式
+                            let badgeVariant: 'destructive' | 'secondary' | 'default' = 'secondary';
+                            let badgeClassName = 'text-xs';
+
+                            if (isWarning) {
+                              badgeVariant = 'destructive';
+                            } else if (isCorresponding) {
+                              badgeVariant = 'default';
+                              badgeClassName = 'text-xs bg-blue-500 hover:bg-blue-600 text-white';
+                            }
 
                             return (
                               <Badge
                                 key={idx}
-                                variant={isWarning ? 'destructive' : 'secondary'}
-                                className="text-xs"
+                                variant={badgeVariant}
+                                className={badgeClassName}
                               >
                                 {name}
                                 {isWarning && (

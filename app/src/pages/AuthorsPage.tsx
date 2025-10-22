@@ -32,6 +32,7 @@ import {
   X,
   Edit,
   CheckCircle2,
+  Database,
 } from 'lucide-react'
 import { usePaperStore } from '@/store/paper-store'
 import { useI18n } from '@/lib/i18n'
@@ -52,6 +53,9 @@ export default function AuthorsPage() {
   const getAuthorsWithEmailConflict = usePaperStore(state => state.getAuthorsWithEmailConflict)
   const updateAuthorEmail = usePaperStore(state => state.updateAuthorEmail)
   const updateAuthorName = usePaperStore(state => state.updateAuthorName)
+  const datasets = usePaperStore(state => state.getDatasets())
+  const currentDatasetId = usePaperStore(state => state.currentDatasetId)
+  const setCurrentDataset = usePaperStore(state => state.setCurrentDataset)
 
   const authors = getAllAuthors()
 
@@ -67,8 +71,8 @@ export default function AuthorsPage() {
   const [editName, setEditName] = useState('')
   const [editEmail, setEditEmail] = useState('')
 
-  // If no data exists
-  if (authors.length === 0) {
+  // If no datasets exist at all
+  if (datasets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
         <div className="text-center space-y-4">
@@ -156,14 +160,34 @@ export default function AuthorsPage() {
   }
 
   return (
-    <>
+    <div className="container mx-auto px-8 py-6 space-y-6">
       <PageHeader
         title="Author Management"
         description="Manage authors, identify quota violations, and resolve email conflicts"
-      />
+      >
+        {/* Dataset Selector */}
+        {datasets.length > 0 && (
+          <div className="flex items-center gap-3">
+            <Database className="h-5 w-5 text-muted-foreground" />
+            <Select value={currentDatasetId} onValueChange={setCurrentDataset}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="Select dataset" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Datasets</SelectItem>
+                {datasets.map((dataset) => (
+                  <SelectItem key={dataset.id} value={dataset.id}>
+                    {dataset.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </PageHeader>
 
       {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="grid gap-4 md:grid-cols-4">
         <AnimatedCard delay={0.1}>
           <div className="p-6">
             <div className="flex items-center justify-between">
@@ -222,7 +246,6 @@ export default function AuthorsPage() {
       </div>
 
       {/* Search and Filters */}
-      <AnimatedCard delay={0.5} className="mb-6">
         <div className="p-6 space-y-4">
           {/* Search Bar */}
           <div className="flex gap-4">
@@ -249,7 +272,7 @@ export default function AuthorsPage() {
                 checked={showWarningOnly}
                 onCheckedChange={setShowWarningOnly}
               />
-              <Label htmlFor="warning-filter">Show quota violations only</Label>
+              <Label htmlFor="warning-filter">Show quota violations</Label>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -258,7 +281,7 @@ export default function AuthorsPage() {
                 checked={showEmailConflictOnly}
                 onCheckedChange={setShowEmailConflictOnly}
               />
-              <Label htmlFor="email-conflict-filter">Show email conflicts only</Label>
+              <Label htmlFor="email-conflict-filter">Show email conflicts</Label>
             </div>
 
             <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
@@ -296,7 +319,6 @@ export default function AuthorsPage() {
             Showing {filteredAuthors.length} of {stats.total} authors
           </div>
         </div>
-      </AnimatedCard>
 
       {/* Author List */}
       <div className="space-y-4">
@@ -445,6 +467,6 @@ export default function AuthorsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }

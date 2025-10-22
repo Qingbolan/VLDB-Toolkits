@@ -18,7 +18,7 @@ export function AnimatedCard({ className, delay = 0, children, ...props }: Anima
         ease: [0.4, 0, 0.2, 1],
       }}
     >
-      <Card className={cn("hover:scale-[1.02] transition-transform duration-300", className)} {...props}>
+      <Card className={className} {...props}>
         {children}
       </Card>
     </motion.div>

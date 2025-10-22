@@ -72,7 +72,7 @@ function MonitorIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ collapsed = false }: { collapsed?: boolean }) {
   const { theme, setTheme, resolvedTheme } = useTheme()
   const [mounted, setMounted] = React.useState(false)
 
@@ -84,40 +84,63 @@ export function ThemeToggle() {
     return (
       <Button variant="outline" size="sm" className="w-full justify-start gap-2">
         <MonitorIcon className="h-4 w-4" />
-        <span>Theme</span>
+        {!collapsed && <span>Theme</span>}
       </Button>
     )
   }
 
+  // 如果是收缩状态，只显示一个切换按钮
+  if (collapsed) {
+    const toggleTheme = () => {
+      setTheme(theme === "light" ? "dark" : "light")
+    }
+
+    return (
+      <button
+        onClick={toggleTheme}
+        title={theme === "light" ? "Switch to Dark" : "Switch to Light"}
+        className={cn(
+          "w-full flex items-center justify-center px-2 py-2 rounded-lg text-sm transition-all duration-167 fluent-transition",
+          "bg-primary/10 text-primary border border-primary/20"
+        )}
+      >
+        {theme === "light" ? (
+          <SunIcon className="h-4 w-4" />
+        ) : (
+          <MoonIcon className="h-4 w-4" />
+        )}
+      </button>
+    )
+  }
+
+  // 展开状态显示两个按钮
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
         <button
           onClick={() => setTheme("light")}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm",
-            "transition-all duration-167 fluent-transition",
+            "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-167 fluent-transition",
             theme === "light"
               ? "bg-primary/10 text-primary border border-primary/20"
               : "bg-muted hover:bg-muted-hover text-muted-foreground"
           )}
         >
-          <SunIcon className="h-4 w-4" />
-          <span className="hidden sm:inline">Light</span>
+          <SunIcon className="h-4 w-4 flex-shrink-0" />
+          <span>Light</span>
         </button>
 
         <button
           onClick={() => setTheme("dark")}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm",
-            "transition-all duration-167 fluent-transition",
+            "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-167 fluent-transition",
             theme === "dark"
               ? "bg-primary/10 text-primary border border-primary/20"
               : "bg-muted hover:bg-muted-hover text-muted-foreground"
           )}
         >
-          <MoonIcon className="h-4 w-4" />
-          <span className="hidden sm:inline">Dark</span>
+          <MoonIcon className="h-4 w-4 flex-shrink-0" />
+          <span>Dark</span>
         </button>
 {/* 
         <button

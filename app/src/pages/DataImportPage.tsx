@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageHeader } from '@/components/page-header'
 import { AnimatedCard } from '@/components/magic/animated-card'
@@ -18,11 +18,11 @@ import {
 } from 'lucide-react'
 import { usePaperStore } from '@/store/paper-store'
 import { useI18n } from '@/lib/i18n'
-import * as XLSX from 'xlsx'
-import type { ExcelRow } from '@/store/paper-types'
+import { parseExcelFile, isValidExcelFile } from '@/algorithms'
 
 interface ImportHistory {
   id: string
+  datasetId: string // 关联的dataset ID
   fileName: string
   timestamp: string
   papersCount: number
@@ -34,7 +34,9 @@ export default function DataImportPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const importExcelData = usePaperStore(state => state.importExcelData)
-  const papers = usePaperStore(state => state.papers)
+  const deleteDataset = usePaperStore(state => state.deleteDataset)
+  const setCurrentDataset = usePaperStore(state => state.setCurrentDataset)
+  const datasets = usePaperStore(state => state.getDatasets())
 
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -51,9 +53,27 @@ export default function DataImportPage() {
     return stored ? JSON.parse(stored) : []
   })
 
-  const saveToHistory = (fileName: string, stats: { papers: number; authors: number; warnings: number }) => {
+  // 清理无效的历史记录
+  useEffect(() => {
+    const stored = localStorage.getItem('import-history')
+    if (!stored) return
+
+    const history = JSON.parse(stored)
+    const validHistory = history.filter((record: ImportHistory) => {
+      return record.datasetId && datasets.some(ds => ds.id === record.datasetId)
+    })
+
+    // 如果清理后数量有变化，更新state和localStorage
+    if (validHistory.length !== history.length) {
+      setImportHistory(validHistory)
+      localStorage.setItem('import-history', JSON.stringify(validHistory))
+    }
+  }, [datasets.length]) // 当datasets数量变化时执行清理
+
+  const saveToHistory = (datasetId: string, fileName: string, stats: { papers: number; authors: number; warnings: number }) => {
     const newRecord: ImportHistory = {
       id: `import-${Date.now()}`,
+      datasetId,
       fileName,
       timestamp: new Date().toISOString(),
       papersCount: stats.papers,
@@ -66,9 +86,24 @@ export default function DataImportPage() {
   }
 
   const deleteHistoryItem = (id: string) => {
+    // 找到对应的历史记录
+    const record = importHistory.find(item => item.id === id)
+    if (record) {
+      // 同时删除store中的dataset
+      deleteDataset(record.datasetId)
+    }
+
+    // 删除历史记录
     const updated = importHistory.filter(item => item.id !== id)
     setImportHistory(updated)
     localStorage.setItem('import-history', JSON.stringify(updated))
+  }
+
+  const handleCardClick = (datasetId: string) => {
+    // 设置当前数据集
+    setCurrentDataset(datasetId)
+    // 跳转到 papers 页面
+    navigate('/papers')
   }
 
   const processExcelFile = useCallback(
@@ -79,42 +114,32 @@ export default function DataImportPage() {
       setImportStats(null)
 
       try {
-        // Read file
+        // Parse Excel file using algorithm module
         setProgress(20)
-        const buffer = await file.arrayBuffer()
+        const parseResult = await parseExcelFile(file)
 
-        // Parse Excel
-        setProgress(40)
-        const workbook = XLSX.read(buffer, { type: 'array' })
-        const sheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[sheetName]
-
-        // Convert to JSON
         setProgress(60)
-        const jsonData = XLSX.utils.sheet_to_json<ExcelRow>(worksheet)
-
-        if (jsonData.length === 0) {
-          throw new Error('Excel file is empty or invalid')
-        }
 
         // Import data to store
         setProgress(80)
-        importExcelData(jsonData)
+        const datasetId = importExcelData(parseResult.data, parseResult.label, file.name)
 
-        // Calculate statistics
+        // Calculate statistics from the newly imported dataset
         const store = usePaperStore.getState()
-        const papersCount = store.papers.length
-        const authorsCount = store.authors.size
-        const warningsCount = store.papers.filter(p => p.hasWarning).length
+        const newDataset = store.datasets.find(ds => ds.id === datasetId)
+
+        if (!newDataset) {
+          throw new Error('Failed to find newly imported dataset')
+        }
 
         const stats = {
-          papers: papersCount,
-          authors: authorsCount,
-          warnings: warningsCount,
+          papers: newDataset.papers.length,
+          authors: newDataset.authors.size,
+          warnings: newDataset.papers.filter(p => p.hasWarning).length,
         }
 
         setImportStats(stats)
-        saveToHistory(file.name, stats)
+        saveToHistory(datasetId, file.name, stats)
         setProgress(100)
 
         // Navigate to papers page after 2 seconds
@@ -136,7 +161,7 @@ export default function DataImportPage() {
     const file = event.target.files?.[0]
     if (!file) return
 
-    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+    if (!isValidExcelFile(file)) {
       setError('Please select a valid Excel file (.xlsx or .xls)')
       return
     }
@@ -150,7 +175,7 @@ export default function DataImportPage() {
       const file = event.dataTransfer.files?.[0]
       if (!file) return
 
-      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      if (!isValidExcelFile(file)) {
         setError('Please select a valid Excel file (.xlsx or .xls)')
         return
       }
@@ -170,20 +195,21 @@ export default function DataImportPage() {
   }
 
   // Show current status if data already exists
-  const hasExistingData = papers.length > 0
+  const hasExistingData = datasets.length > 0
+  const totalPapers = datasets.reduce((sum, ds) => sum + ds.papers.length, 0)
 
   return (
-    <>
+    <div className="container mx-auto px-8 py-6 space-y-6">
       <PageHeader
         title={t('import.title')}
         description={t('import.description')}
       />
 
       {hasExistingData && !isProcessing && !importStats && (
-        <Alert className="mb-6">
+        <Alert>
           <CheckCircle2 className="h-4 w-4" />
           <AlertDescription>
-            {t('import.existingData')} {papers.length} {t('import.papers')}
+            {t('import.existingData')} {totalPapers} {t('import.papers')} in {datasets.length} dataset{datasets.length > 1 ? 's' : ''}
             <Button
               variant="link"
               className="ml-2 h-auto p-0"
@@ -297,7 +323,7 @@ export default function DataImportPage() {
 
       {/* Import History - Only show when history exists */}
       {importHistory.length > 0 && (
-        <AnimatedCard delay={0.3} className="mt-6">
+        <AnimatedCard delay={0.3}>
           <div className="p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -308,52 +334,66 @@ export default function DataImportPage() {
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {importHistory.map((record) => (
-                <div
-                  key={record.id}
-                  className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <FileSpreadsheet className="h-4 w-4 text-primary flex-shrink-0" />
-                      <p className="font-medium text-sm truncate">{record.fileName}</p>
+              {importHistory.map((record) => {
+                const dataset = datasets.find(ds => ds.id === record.datasetId)
+                return (
+                  <div
+                    key={record.id}
+                    className="p-4 border rounded-lg hover:bg-muted/50 hover:shadow-md transition-all cursor-pointer"
+                    onClick={() => handleCardClick(record.datasetId)}
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex flex-col gap-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet className="h-4 w-4 text-primary flex-shrink-0" />
+                          <p className="font-medium text-sm truncate">
+                            {dataset?.label || 'Deleted Dataset'}
+                          </p>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate pl-6">
+                          {record.fileName}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteHistoryItem(record.id)
+                        }}
+                        className="flex-shrink-0 h-6 w-6 p-0"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteHistoryItem(record.id)}
-                      className="flex-shrink-0 h-6 w-6 p-0"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
 
-                  <p className="text-xs text-muted-foreground mb-3">
-                    {formatTimestamp(record.timestamp)}
-                  </p>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      {formatTimestamp(record.timestamp)}
+                    </p>
 
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      <FileText className="h-3 w-3 mr-1" />
-                      {record.papersCount}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      <Users className="h-3 w-3 mr-1" />
-                      {record.authorsCount}
-                    </Badge>
-                    {record.warningsCount > 0 && (
-                      <Badge variant="destructive" className="text-xs">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        {record.warningsCount}
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        <FileText className="h-3 w-3 mr-1" />
+                        {record.papersCount}
                       </Badge>
-                    )}
+                      <Badge variant="outline" className="text-xs">
+                        <Users className="h-3 w-3 mr-1" />
+                        {record.authorsCount}
+                      </Badge>
+                      {record.warningsCount > 0 && (
+                        <Badge variant="destructive" className="text-xs">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {record.warningsCount}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </AnimatedCard>
       )}
-    </>
+    </div>
   )
 }

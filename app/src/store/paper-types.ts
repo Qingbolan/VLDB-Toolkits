@@ -10,8 +10,9 @@ export interface Paper {
   abstract: string
   primaryContactAuthorName: string
   primaryContactAuthorEmail: string
-  authorNames: string[] // 作者姓名列表
+  authorNames: string[] // 作者姓名列表（格式化后）
   authorEmails: string[] // 作者邮箱列表
+  correspondingAuthorIndices: number[] // 通讯作者的索引位置
   trackName: string
   primarySubjectArea: string
   secondarySubjectAreas: string[]
@@ -81,4 +82,14 @@ export interface ExcelRow {
   'Secondary Subject Areas': string
   'Status': string
   [key: string]: any // 其他字段
+}
+
+// 数据集
+export interface Dataset {
+  id: string // 唯一ID
+  label: string // 数据集标签，如 "Research -> October 2025"
+  fileName: string // 原始文件名
+  importedAt: string // 导入时间
+  papers: Paper[]
+  authors: Map<string, AuthorStats>
 }

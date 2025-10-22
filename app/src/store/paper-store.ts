@@ -1,22 +1,30 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { Paper, AuthorStats, AuthorMerge, ExcelRow } from './paper-types'
+import type { Paper, AuthorStats, AuthorMerge, ExcelRow, Dataset } from './paper-types'
+import { processExcelData, calculateAuthorStats, markPaperWarnings } from '@/algorithms'
 
 /**
  * 论文和作者数据管理 Store
  */
 interface PaperStore {
   // 数据
-  papers: Paper[]
-  authors: Map<string, AuthorStats> // key: email
+  datasets: Dataset[]
+  currentDatasetId: string // "all" 或具体的dataset id
+  papers: Paper[] // 当前选中数据集的papers（计算属性）
+  authors: Map<string, AuthorStats> // 当前选中数据集的authors（计算属性）
   authorMerges: AuthorMerge[] // 人工标记的作者合并记录
 
   // 加载状态
   isLoading: boolean
   error: string | null
 
+  // 数据集操作
+  getDatasets: () => Dataset[]
+  setCurrentDataset: (datasetId: string) => void
+  deleteDataset: (datasetId: string) => void
+
   // 数据导入
-  importExcelData: (rows: ExcelRow[]) => void
+  importExcelData: (rows: ExcelRow[], label: string, fileName: string) => string // 返回datasetId
 
   // 论文操作
   getPaperById: (paperId: number) => Paper | undefined
@@ -41,118 +49,28 @@ interface PaperStore {
   reset: () => void
 }
 
+
 /**
- * 解析分隔符分隔的字符串为数组
+ * 合并多个数据集的papers和authors（用于"All"视图）
  */
-const parseDelimitedString = (str: string | null | undefined): string[] => {
-  if (!str) return []
-  // 尝试多种分隔符: 逗号, 分号, 换行
-  const delimiters = [',', ';', '\n', '|']
-  for (const delimiter of delimiters) {
-    if (str.includes(delimiter)) {
-      return str
-        .split(delimiter)
-        .map(s => s.trim())
-        .filter(s => s.length > 0)
-    }
+const mergeDatasets = (datasets: Dataset[]): { papers: Paper[], authors: Map<string, AuthorStats> } => {
+  if (datasets.length === 0) {
+    return { papers: [], authors: new Map() }
   }
-  // 如果没有分隔符，返回单个元素
-  return str.trim() ? [str.trim()] : []
-}
 
-/**
- * 计算作者统计信息
- */
-const calculateAuthorStats = (papers: Paper[]): Map<string, AuthorStats> => {
-  const authorMap = new Map<string, AuthorStats>()
-
-  // 首先收集所有作者的论文
-  papers.forEach(paper => {
-    paper.authorEmails.forEach((email, index) => {
-      const name = paper.authorNames[index] || 'Unknown'
-
-      if (!authorMap.has(email)) {
-        authorMap.set(email, {
-          id: email,
-          name,
-          email,
-          paperCount: 0,
-          paperIds: [],
-          hasWarning: false,
-          hasEmailConflict: false,
-          hasPotentialDuplicate: false,
-        })
-      }
-
-      const author = authorMap.get(email)!
-      author.paperIds.push(paper.paperId)
-    })
+  // 合并所有papers
+  const allPapers: Paper[] = []
+  datasets.forEach(ds => {
+    allPapers.push(...ds.papers)
   })
 
-  // 排序论文ID并计算统计
-  authorMap.forEach(author => {
-    author.paperIds.sort((a, b) => a - b) // 按paperId升序排序
-    author.paperCount = author.paperIds.length
-    author.hasWarning = author.paperCount > 2 // 超过2篇标记warning
-  })
+  // 重新计算作者统计（因为可能跨数据集）
+  const authors = calculateAuthorStats(allPapers)
 
-  // 检测email冲突（一个email对应多个不同的作者名）
-  const emailToNames = new Map<string, Set<string>>()
-  papers.forEach(paper => {
-    paper.authorEmails.forEach((email, index) => {
-      const name = paper.authorNames[index]
-      if (!emailToNames.has(email)) {
-        emailToNames.set(email, new Set())
-      }
-      emailToNames.get(email)!.add(name)
-    })
-  })
+  // 重新标记warnings
+  const papersWithWarnings = markPaperWarnings(allPapers, authors)
 
-  emailToNames.forEach((names, email) => {
-    if (names.size > 1) {
-      const author = authorMap.get(email)
-      if (author) {
-        author.hasEmailConflict = true
-      }
-    }
-  })
-
-  return authorMap
-}
-
-/**
- * 标记论文的warning信息
- */
-const markPaperWarnings = (papers: Paper[], authors: Map<string, AuthorStats>): Paper[] => {
-  return papers.map(paper => {
-    const warningAuthors = []
-
-    paper.authorEmails.forEach((email, index) => {
-      const author = authors.get(email)
-      if (!author) return
-
-      if (author.hasWarning) {
-        // 找出该论文在作者的论文列表中的排名
-        const paperRank = author.paperIds.indexOf(paper.paperId) + 1
-
-        // 如果排名>2，则标记warning
-        if (paperRank > 2) {
-          warningAuthors.push({
-            name: paper.authorNames[index],
-            email,
-            paperCount: author.paperCount,
-            paperRank,
-          })
-        }
-      }
-    })
-
-    return {
-      ...paper,
-      hasWarning: warningAuthors.length > 0,
-      warningAuthors,
-    }
-  })
+  return { papers: papersWithWarnings, authors }
 }
 
 /**
@@ -162,52 +80,84 @@ export const usePaperStore = create<PaperStore>()(
   persist(
     (set, get) => ({
       // 初始状态
+      datasets: [],
+      currentDatasetId: 'all',
       papers: [],
       authors: new Map(),
       authorMerges: [],
       isLoading: false,
       error: null,
 
+      // 获取所有数据集
+      getDatasets: () => {
+        return get().datasets
+      },
+
+      // 切换当前数据集
+      setCurrentDataset: (datasetId: string) => {
+        const { datasets } = get()
+
+        if (datasetId === 'all') {
+          // 合并所有数据集
+          const { papers, authors } = mergeDatasets(datasets)
+          set({ currentDatasetId: 'all', papers, authors })
+        } else {
+          // 查找特定数据集
+          const dataset = datasets.find(ds => ds.id === datasetId)
+          if (dataset) {
+            set({
+              currentDatasetId: datasetId,
+              papers: dataset.papers,
+              authors: dataset.authors,
+            })
+          }
+        }
+      },
+
+      // 删除数据集
+      deleteDataset: (datasetId: string) => {
+        const { datasets, currentDatasetId } = get()
+        const newDatasets = datasets.filter(ds => ds.id !== datasetId)
+        set({ datasets: newDatasets })
+
+        // 如果删除的是当前数据集，切换到"all"
+        if (currentDatasetId === datasetId) {
+          get().setCurrentDataset('all')
+        }
+      },
+
       // 导入Excel数据
-      importExcelData: (rows: ExcelRow[]) => {
+      importExcelData: (rows: ExcelRow[], label: string, fileName: string) => {
         try {
           set({ isLoading: true, error: null })
 
-          const papers: Paper[] = rows.map(row => ({
-            paperId: row['Paper ID'],
-            originalPaperId: row['Original Paper ID'] || '',
-            title: row['Paper Title'] || '',
-            abstract: row['Abstract'] || '',
-            primaryContactAuthorName: row['Primary Contact Author Name'] || '',
-            primaryContactAuthorEmail: row['Primary Contact Author Email'] || '',
-            authorNames: parseDelimitedString(row['Author Names']),
-            authorEmails: parseDelimitedString(row['Author Emails']),
-            trackName: row['Track Name'] || '',
-            primarySubjectArea: row['Primary Subject Area'] || '',
-            secondarySubjectAreas: parseDelimitedString(row['Secondary Subject Areas']),
-            status: row['Status'] || '',
-            created: row['Created'] || '',
-            lastModified: row['Last Modified'] || '',
-            hasWarning: false,
-            warningAuthors: [],
-          }))
+          // 使用算法模块处理数据
+          const { papers: papersWithWarnings, authors } = processExcelData(rows)
 
-          // 计算作者统计
-          const authors = calculateAuthorStats(papers)
-
-          // 标记论文warnings
-          const papersWithWarnings = markPaperWarnings(papers, authors)
-
-          set({
+          // 创建新数据集
+          const newDataset: Dataset = {
+            id: `dataset-${Date.now()}`,
+            label,
+            fileName,
+            importedAt: new Date().toISOString(),
             papers: papersWithWarnings,
             authors,
-            isLoading: false,
-          })
+          }
+
+          // 添加到datasets
+          const newDatasets = [...get().datasets, newDataset]
+          set({ datasets: newDatasets, isLoading: false })
+
+          // 自动切换到新导入的数据集
+          get().setCurrentDataset(newDataset.id)
+
+          return newDataset.id
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Unknown error',
             isLoading: false,
           })
+          throw error
         }
       },
 
@@ -298,6 +248,8 @@ export const usePaperStore = create<PaperStore>()(
       // 重置
       reset: () => {
         set({
+          datasets: [],
+          currentDatasetId: 'all',
           papers: [],
           authors: new Map(),
           authorMerges: [],
@@ -311,14 +263,79 @@ export const usePaperStore = create<PaperStore>()(
       storage: createJSONStorage(() => localStorage),
       // Map需要特殊处理序列化
       partialize: (state) => ({
+        datasets: state.datasets.map(ds => ({
+          ...ds,
+          authors: Array.from(ds.authors.entries()),
+        })),
+        currentDatasetId: state.currentDatasetId,
         papers: state.papers,
         authors: Array.from(state.authors.entries()),
         authorMerges: state.authorMerges,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state && Array.isArray(state.authors)) {
-          // @ts-ignore - 恢复Map
-          state.authors = new Map(state.authors)
+        if (state) {
+          // 迁移旧数据格式：如果有papers但没有datasets，创建一个默认数据集
+          // @ts-ignore
+          if (state.papers && state.papers.length > 0 && (!state.datasets || state.datasets.length === 0)) {
+            console.log('Migrating old data format to new dataset structure')
+            // @ts-ignore
+            const oldPapers = state.papers
+            // @ts-ignore
+            const oldAuthors = Array.isArray(state.authors) ? new Map(state.authors) : state.authors
+
+            const migratedDataset = {
+              id: `dataset-migrated-${Date.now()}`,
+              label: 'Migrated Dataset',
+              fileName: 'legacy-data.xlsx',
+              importedAt: new Date().toISOString(),
+              papers: oldPapers,
+              authors: oldAuthors,
+            }
+
+            // @ts-ignore
+            state.datasets = [migratedDataset]
+            // @ts-ignore
+            state.currentDatasetId = migratedDataset.id
+            // @ts-ignore
+            state.papers = oldPapers
+            // @ts-ignore
+            state.authors = oldAuthors
+          }
+
+          // 恢复datasets中的authors Map
+          if (Array.isArray(state.datasets)) {
+            // @ts-ignore
+            state.datasets = state.datasets.map(ds => ({
+              ...ds,
+              authors: ds.authors instanceof Map ? ds.authors : new Map(ds.authors || []),
+            }))
+          } else {
+            // @ts-ignore
+            state.datasets = []
+          }
+
+          // 恢复当前的authors Map
+          if (Array.isArray(state.authors)) {
+            // @ts-ignore
+            state.authors = new Map(state.authors)
+          } else if (!(state.authors instanceof Map)) {
+            // @ts-ignore
+            state.authors = new Map()
+          }
+
+          // 确保papers是数组
+          // @ts-ignore
+          if (!Array.isArray(state.papers)) {
+            // @ts-ignore
+            state.papers = []
+          }
+
+          // 确保currentDatasetId存在
+          // @ts-ignore
+          if (!state.currentDatasetId) {
+            // @ts-ignore
+            state.currentDatasetId = 'all'
+          }
         }
       },
     }

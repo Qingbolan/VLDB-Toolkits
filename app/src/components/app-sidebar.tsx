@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useRBSidebar } from "@/components/reactbits/sidebar"
 
 export function AppSidebar() {
   const location = useLocation()
   const pathname = location.pathname
   const { locale, setLocale, t } = useI18n()
+  const { collapsed, toggle } = useRBSidebar()
 
   const navigation = [
     {
@@ -44,7 +46,14 @@ export function AppSidebar() {
       {/* Content */}
       <div className="relative z-10 flex h-full w-full flex-col">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
+      <div
+        className={cn(
+          "flex h-16 items-center border-b border-sidebar-border transition-all",
+          collapsed ? "justify-center px-2 cursor-pointer hover:bg-sidebar-accent" : "gap-3 px-6"
+        )}
+        onClick={collapsed ? toggle : undefined}
+        title={collapsed ? "Expand sidebar" : undefined}
+      >
         <div className="relative h-10 w-10 flex-shrink-0">
           <img
             src="/logo.png"
@@ -52,7 +61,11 @@ export function AppSidebar() {
             className="h-full w-full object-contain"
           />
         </div>
-        <span className="text-lg font-semibold">VLDB-Toolkits</span>
+        {!collapsed && (
+          <span className="text-lg font-semibold whitespace-nowrap overflow-hidden">
+            VLDB-Toolkits
+          </span>
+        )}
       </div>
 
       {/* Navigation */}
@@ -63,15 +76,17 @@ export function AppSidebar() {
             <Link
               key={item.name}
               to={item.href}
+              title={collapsed ? item.name : undefined}
               className={cn(
-                "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium fluent-transition",
+                "group flex items-center rounded-lg py-2.5 text-sm font-medium fluent-transition",
+                collapsed ? "justify-center px-2" : "gap-3 px-3",
                 isActive
                   ? "bg-primary/10 text-primary fluent-shadow-xs"
                   : "text-sidebar-foreground hover:bg-sidebar-accent",
               )}
             >
-              <item.icon className="h-5 w-5" />
-              <span>{item.name}</span>
+              <item.icon className="h-5 w-5 flex-shrink-0" />
+              {!collapsed && <span>{item.name}</span>}
             </Link>
           )
         })}
@@ -79,7 +94,7 @@ export function AppSidebar() {
 
       {/* Theme Toggle */}
       <div className="border-t border-sidebar-border p-4">
-        <ThemeToggle />
+        <ThemeToggle collapsed={collapsed} />
       </div>
 
       {/* Language Toggle */}
@@ -88,10 +103,14 @@ export function AppSidebar() {
           variant="outline"
           size="sm"
           onClick={toggleLocale}
-          className="w-full justify-start gap-2"
+          title={collapsed ? (locale === "en" ? "中文" : "English") : undefined}
+          className={cn(
+            "w-full gap-2 transition-all",
+            collapsed ? "justify-center px-2" : "justify-start"
+          )}
         >
-          <GlobeIcon className="h-4 w-4" />
-          <span>{locale === "en" ? "中文" : "English"}</span>
+          <GlobeIcon className="h-4 w-4 flex-shrink-0" />
+          {!collapsed && <span>{locale === "en" ? "中文" : "English"}</span>}
         </Button>
       </div>
       </div>
