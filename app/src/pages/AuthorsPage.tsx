@@ -49,7 +49,6 @@ import {
   Link2,
 } from 'lucide-react'
 import { usePaperStore } from '@/store/paper-store'
-import { useI18n } from '@/lib/i18n'
 import {
   searchAuthors,
   filterAuthors,
@@ -59,7 +58,6 @@ import {
 import type { AuthorStats } from '@/store/paper-types'
 
 export default function AuthorsPage() {
-  const { t } = useI18n()
   const navigate = useNavigate()
   const getAllAuthors = usePaperStore(state => state.getAllAuthors)
   const getAuthorsWithWarning = usePaperStore(state => state.getAuthorsWithWarning)
@@ -161,7 +159,7 @@ export default function AuthorsPage() {
 
     // Find all authors with duplicate names
     const duplicateEmails = new Set<string>()
-    nameToEmails.forEach((emails, name) => {
+    nameToEmails.forEach((emails) => {
       if (emails.length > 1) {
         emails.forEach(email => duplicateEmails.add(email))
       }

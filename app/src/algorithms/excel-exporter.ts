@@ -1,22 +1,26 @@
 /**
- * Excel 导出算法模块
- * 处理 Papers 数据导出为带样式的 Excel 文件
+ * Excel Export Algorithm Module
+ * Handle exporting Papers data to styled Excel files
  */
 
 import * as XLSX from 'xlsx-js-style'
 import type { Paper, AuthorMerge } from '@/store/paper-types'
 
 /**
- * 导出 Papers 到 Excel，包含标记和样式
- * @param papers - 论文列表
- * @param authorMerges - 作者合并记录
- * @returns Excel 文件的 ArrayBuffer
+ * Export Papers to Excel with marking and styling
+ * @param papers - Paper list
+ * @param authorMerges - Author merge records
+ * @param datasetLabel - Dataset label
+ * @param filterInfo - Filter information
+ * @returns ArrayBuffer of Excel file
  */
 export const exportPapersToExcel = (
   papers: Paper[],
-  authorMerges: AuthorMerge[]
+  authorMerges: AuthorMerge[],
+  datasetLabel: string = 'All Datasets',
+  filterInfo: string = 'No filters applied'
 ): ArrayBuffer => {
-  // 创建一个 email 到 merge group 的映射
+  // Create email to merge group mapping
   const emailToMergeGroup = new Map<string, AuthorMerge>()
   authorMerges.forEach(merge => {
     emailToMergeGroup.set(merge.primaryEmail, merge)
@@ -25,12 +29,12 @@ export const exportPapersToExcel = (
     })
   })
 
-  // 准备数据行
+  // Prepare data rows
   const rows = papers.map(paper => {
-    // 检查是否有 warning
+    // Check if has warning
     const isMarked = paper.hasWarning
 
-    // 生成 note: 列出所有 warning 作者及原因
+    // Generate note: list all warning authors and reasons
     let note = ''
     if (paper.warningAuthors && paper.warningAuthors.length > 0) {
       note = paper.warningAuthors
@@ -38,7 +42,7 @@ export const exportPapersToExcel = (
         .join('; ')
     }
 
-    // 检查是否有链接的作者
+    // Check if has linked authors
     const linkedAuthorEmails = paper.authorEmails.filter(email => emailToMergeGroup.has(email))
     let addition = ''
     if (linkedAuthorEmails.length > 0) {
@@ -50,23 +54,17 @@ export const exportPapersToExcel = (
       addition = linkedAuthorsInfo.join('; ')
     }
 
-    // 标记 warning 作者和 linked 作者
-    const warningEmails = new Set(paper.warningAuthors?.map(wa => wa.email) || [])
+    // Mark warning authors
 
-    // 构建作者列表，标注 warning 和 linked
+    // Build author list with organizations, mark corresponding authors with *
     const authorsList = paper.authorNames.map((name, idx) => {
-      const email = paper.authorEmails[idx]
-      let marker = ''
-      if (warningEmails.has(email)) {
-        marker = ' [WARNING]'
-      }
-      if (emailToMergeGroup.has(email)) {
-        marker += ' [LINKED]'
-      }
-      return name + marker
+      const isCorresponding = paper.correspondingAuthorIndices.includes(idx)
+      const organization = paper.authorOrganizations[idx] || ''
+      const authorWithOrg = organization ? `${name} (${organization})` : name
+      return isCorresponding ? authorWithOrg + '*' : authorWithOrg
     }).join('; ')
 
-    // 通讯作者
+    // Corresponding authors
     const correspondingAuthors = paper.authorNames
       .filter((_, idx) => paper.correspondingAuthorIndices.includes(idx))
       .join('; ')
@@ -74,59 +72,155 @@ export const exportPapersToExcel = (
     return {
       'Paper ID': paper.paperId,
       'Original Paper ID': paper.originalPaperId,
-      'Title': paper.title,
+      'Created': paper.created,
+      'Last Modified': paper.lastModified,
+      'Paper Title': paper.title,
+      'Abstract': paper.abstract,
+      'Primary Contact Author Name': paper.primaryContactAuthorName,
+      'Primary Contact Author Email': paper.primaryContactAuthorEmail,
       'Authors': authorsList,
       'Author Names': paper.authorNames.join('; '),
       'Author Emails': paper.authorEmails.join('; '),
-      'Organizations': paper.authorOrganizations.join('; '),
-      'Corresponding Authors': correspondingAuthors,
-      'Primary Contact': paper.primaryContactAuthorName,
-      'Primary Contact Email': paper.primaryContactAuthorEmail,
-      'Track': paper.trackName,
+      'Track Name': paper.trackName,
       'Primary Subject Area': paper.primarySubjectArea,
       'Secondary Subject Areas': paper.secondarySubjectAreas.join('; '),
+      'Conflicts': paper.conflicts,
+      'Assigned': paper.assigned,
+      'Completed': paper.completed,
+      '% Completed': paper.percentCompleted,
+      'Bids': paper.bids,
+      'Discussion': paper.discussion,
       'Status': paper.status,
-      'Created': paper.created,
-      'Last Modified': paper.lastModified,
+      'Requested For Author Feedback': paper.requestedForAuthorFeedback,
+      'Author Feedback Submitted?': paper.authorFeedbackSubmitted,
+      'Requested For Camera Ready': paper.requestedForCameraReady,
+      'Camera Ready Submitted?': paper.cameraReadySubmitted,
+      'Requested For Presentation': paper.requestedForPresentation,
+      'Files': paper.files,
+      'Number of Files': paper.numberOfFiles,
+      'Supplementary Files': paper.supplementaryFiles,
+      'Number of Supplementary Files': paper.numberOfSupplementaryFiles,
+      'Reviewers': paper.reviewers,
+      'Reviewer Emails': paper.reviewerEmails,
+      'MetaReviewers': paper.metaReviewers,
+      'MetaReviewer Emails': paper.metaReviewerEmails,
+      'SeniorMetaReviewers': paper.seniorMetaReviewers,
+      'SeniorMetaReviewerEmails': paper.seniorMetaReviewerEmails,
+      'Chair Note (Reject reason)': paper.chairNote,
+      '[Review] Min (Overall Rating)': paper.reviewMinOverallRating,
+      '[Review] Max (Overall Rating)': paper.reviewMaxOverallRating,
+      '[Review] Avg (Overall Rating)': paper.reviewAvgOverallRating,
+      '[Review] Spread (Overall Rating)': paper.reviewSpreadOverallRating,
+
+      // New columns for organization and corresponding author info
+      'Organizations': paper.authorOrganizations.join('; '),
+      'Corresponding Authors': correspondingAuthors,
+
+      // Marking columns
       'Is Marked': isMarked ? 'Yes' : 'No',
       'Note': note,
       'Addition': addition,
     }
   })
 
-  // 创建工作表
-  const worksheet = XLSX.utils.json_to_sheet(rows)
+  // Create empty worksheet
+  const worksheet: any = {}
 
-  // 获取范围
-  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
+  // First row: Dataset label and filter conditions
+  const infoText = `Dataset: ${datasetLabel} | Filters: ${filterInfo}`
+  worksheet['A1'] = { v: infoText, t: 's' }
 
-  // 应用样式
+  // Second row: Empty
+
+  // Third row: Column headers (matching original format)
+  const headers = [
+    'Paper ID', 'Original Paper ID', 'Created', 'Last Modified',
+    'Paper Title', 'Abstract',
+    'Primary Contact Author Name', 'Primary Contact Author Email',
+    'Authors', 'Author Names', 'Author Emails',
+    'Track Name', 'Primary Subject Area', 'Secondary Subject Areas',
+    'Conflicts', 'Assigned', 'Completed', '% Completed', 'Bids', 'Discussion',
+    'Status',
+    'Requested For Author Feedback', 'Author Feedback Submitted?',
+    'Requested For Camera Ready', 'Camera Ready Submitted?', 'Requested For Presentation',
+    'Files', 'Number of Files', 'Supplementary Files', 'Number of Supplementary Files',
+    'Reviewers', 'Reviewer Emails', 'MetaReviewers', 'MetaReviewer Emails',
+    'SeniorMetaReviewers', 'SeniorMetaReviewerEmails',
+    'Chair Note (Reject reason)',
+    '[Review] Min (Overall Rating)', '[Review] Max (Overall Rating)',
+    '[Review] Avg (Overall Rating)', '[Review] Spread (Overall Rating)',
+    // New columns for additional info
+    'Organizations', 'Corresponding Authors',
+    // Marking columns
+    'Is Marked', 'Note', 'Addition'
+  ]
+
+  headers.forEach((header, colIdx) => {
+    const cellAddress = XLSX.utils.encode_cell({ r: 2, c: colIdx })
+    worksheet[cellAddress] = { v: header, t: 's' }
+  })
+
+  // Add data starting from row 4
+  rows.forEach((row, rowIdx) => {
+    const dataRow = rowIdx + 3 // Start from row 4 (index 3)
+    // Write data in headers order
+    headers.forEach((header, colIdx) => {
+      const cellAddress = XLSX.utils.encode_cell({ r: dataRow, c: colIdx })
+          const value = (row as Record<string, unknown>)[header]
+      worksheet[cellAddress] = { v: value, t: typeof value === 'number' ? 'n' : 's' }
+    })
+  })
+
+  // Set worksheet range
+  const range = {
+    s: { r: 0, c: 0 },
+    e: { r: rows.length + 2, c: headers.length - 1 }
+  }
+  worksheet['!ref'] = XLSX.utils.encode_range(range)
+
+  // Apply styles
   for (let R = range.s.r; R <= range.e.r; ++R) {
     for (let C = range.s.c; C <= range.e.c; ++C) {
       const cellAddress = XLSX.utils.encode_cell({ r: R, c: C })
 
-      if (!worksheet[cellAddress]) continue
+      // Ensure cell exists, even if empty
+      if (!worksheet[cellAddress]) {
+        worksheet[cellAddress] = { v: '', t: 's' }
+      }
 
-      // 初始化单元格样式
+      // Initialize cell style
       if (!worksheet[cellAddress].s) {
         worksheet[cellAddress].s = {}
       }
 
-      // 标题行样式 (深灰色背景，白色文字)
+      // First row: Info row style (blue background, white bold)
       if (R === 0) {
         worksheet[cellAddress].s = {
+          font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 12 },
+          fill: { patternType: 'solid', fgColor: { rgb: '3B82F6' } },
+          alignment: { horizontal: 'left', vertical: 'center' },
+        }
+      }
+      // Second row: Empty, no style
+      else if (R === 1) {
+        // Empty row
+      }
+      // Third row: Header row style (dark gray background, white text)
+      else if (R === 2) {
+        worksheet[cellAddress].s = {
           font: { bold: true, color: { rgb: 'FFFFFF' } },
-          fill: { fgColor: { rgb: '4A5568' } },
+          fill: { patternType: 'solid', fgColor: { rgb: '4A5568' } },
           alignment: { horizontal: 'center', vertical: 'center' },
         }
-      } else {
-        // 数据行
-        const paper = papers[R - 1]
+      }
+      // Data rows (starting from row 4, index 3)
+      else {
+        const paper = papers[R - 3] // Subtract 3 rows (info, empty, header)
 
-        // Warning 记录用玫瑰红背景 (MistyRose/Light Rose)
+        // Warning records use rose pink background (MistyRose/Light Rose)
         if (paper.hasWarning) {
           worksheet[cellAddress].s = {
-            fill: { fgColor: { rgb: 'FFE4E8' } }, // 玫瑰红 Rose Pink
+            fill: { patternType: 'solid', fgColor: { rgb: 'FFE4E8' } }, // Rose Pink
             alignment: { vertical: 'top', wrapText: true },
           }
         } else {
@@ -135,88 +229,157 @@ export const exportPapersToExcel = (
           }
         }
 
-        // 特殊列处理
-        const headerCell = worksheet[XLSX.utils.encode_cell({ r: 0, c: C })]
+        // Special column handling - column name in row 3 (index 2)
+        const headerCell = worksheet[XLSX.utils.encode_cell({ r: 2, c: C })]
         const colName = headerCell?.v
 
-        // Authors 列：包含 [WARNING] 和 [LINKED] 标记
+        // Authors column: only mark warning authors in red
         if (colName === 'Authors') {
           const hasWarningAuthors = paper.warningAuthors && paper.warningAuthors.length > 0
-          const hasLinkedAuthors = paper.authorEmails.some(email => emailToMergeGroup.has(email))
 
-          if (hasWarningAuthors && hasLinkedAuthors) {
-            // 既有 warning 又有 linked - 使用渐变或混合色 (这里用 warning 色优先)
-            worksheet[cellAddress].s.fill = { fgColor: { rgb: 'FFE4E8' } }
-            worksheet[cellAddress].s.font = { bold: true }
-          } else if (hasWarningAuthors) {
-            // 只有 warning - 红色文字
+          if (hasWarningAuthors) {
+            // Has warning authors - red bold text
             worksheet[cellAddress].s.font = { color: { rgb: 'DC2626' }, bold: true }
-          } else if (hasLinkedAuthors) {
-            // 只有 linked - 紫色文字
-            worksheet[cellAddress].s.font = { color: { rgb: '9333EA' }, bold: true }
           }
         }
 
-        // Note 列 - 如果有内容，使用橙色文字强调
+        // Note column - if has content, use orange text for emphasis
         if (colName === 'Note' && worksheet[cellAddress].v) {
-          worksheet[cellAddress].s.font = { color: { rgb: 'EA580C' } }
+          if (!worksheet[cellAddress].s.font) {
+            worksheet[cellAddress].s.font = {}
+          }
+          worksheet[cellAddress].s.font.color = { rgb: 'EA580C' }
         }
 
-        // Addition 列 - 如果有内容，使用紫色文字
+        // Addition column - if has content, use purple text
         if (colName === 'Addition' && worksheet[cellAddress].v) {
-          worksheet[cellAddress].s.font = { color: { rgb: '9333EA' } }
+          if (!worksheet[cellAddress].s.font) {
+            worksheet[cellAddress].s.font = {}
+          }
+          worksheet[cellAddress].s.font.color = { rgb: '9333EA' }
         }
 
-        // Is Marked 列 - Yes 用红色，No 用绿色
+        // Is Marked column - Yes in red, No in green
         if (colName === 'Is Marked') {
+          if (!worksheet[cellAddress].s.font) {
+            worksheet[cellAddress].s.font = {}
+          }
           if (worksheet[cellAddress].v === 'Yes') {
-            worksheet[cellAddress].s.font = { color: { rgb: 'DC2626' }, bold: true }
+            worksheet[cellAddress].s.font.color = { rgb: 'DC2626' }
+            worksheet[cellAddress].s.font.bold = true
           } else {
-            worksheet[cellAddress].s.font = { color: { rgb: '16A34A' } }
+            worksheet[cellAddress].s.font.color = { rgb: '16A34A' }
           }
         }
       }
     }
   }
 
-  // 设置列宽
+  // Set column widths (matching new column order)
   worksheet['!cols'] = [
     { wch: 10 },  // Paper ID
     { wch: 20 },  // Original Paper ID
-    { wch: 50 },  // Title
-    { wch: 60 },  // Authors (with markers)
-    { wch: 40 },  // Author Names
-    { wch: 50 },  // Author Emails
-    { wch: 40 },  // Organizations
-    { wch: 30 },  // Corresponding Authors
-    { wch: 25 },  // Primary Contact
-    { wch: 35 },  // Primary Contact Email
-    { wch: 20 },  // Track
-    { wch: 25 },  // Primary Subject Area
-    { wch: 30 },  // Secondary Subject Areas
-    { wch: 15 },  // Status
     { wch: 20 },  // Created
     { wch: 20 },  // Last Modified
+    { wch: 50 },  // Paper Title
+    { wch: 80 },  // Abstract
+    { wch: 25 },  // Primary Contact Author Name
+    { wch: 35 },  // Primary Contact Author Email
+    { wch: 60 },  // Authors (with organizations and markers)
+    { wch: 40 },  // Author Names
+    { wch: 50 },  // Author Emails
+    { wch: 20 },  // Track Name
+    { wch: 25 },  // Primary Subject Area
+    { wch: 30 },  // Secondary Subject Areas
+    { wch: 20 },  // Conflicts
+    { wch: 15 },  // Assigned
+    { wch: 15 },  // Completed
+    { wch: 20 },  // % Completed
+    { wch: 15 },  // Bids
+    { wch: 30 },  // Discussion
+    { wch: 15 },  // Status
+    { wch: 30 },  // Requested For Author Feedback
+    { wch: 30 },  // Author Feedback Submitted?
+    { wch: 30 },  // Requested For Camera Ready
+    { wch: 30 },  // Camera Ready Submitted?
+    { wch: 30 },  // Requested For Presentation
+    { wch: 50 },  // Files
+    { wch: 20 },  // Number of Files
+    { wch: 50 },  // Supplementary Files
+    { wch: 30 },  // Number of Supplementary Files
+    { wch: 40 },  // Reviewers
+    { wch: 50 },  // Reviewer Emails
+    { wch: 40 },  // MetaReviewers
+    { wch: 50 },  // MetaReviewer Emails
+    { wch: 40 },  // SeniorMetaReviewers
+    { wch: 50 },  // SeniorMetaReviewerEmails
+    { wch: 60 },  // Chair Note (Reject reason)
+    { wch: 25 },  // [Review] Min (Overall Rating)
+    { wch: 25 },  // [Review] Max (Overall Rating)
+    { wch: 25 },  // [Review] Avg (Overall Rating)
+    { wch: 30 },  // [Review] Spread (Overall Rating)
+    { wch: 40 },  // Organizations
+    { wch: 30 },  // Corresponding Authors
     { wch: 12 },  // Is Marked
     { wch: 80 },  // Note
     { wch: 40 },  // Addition
   ]
 
-  // 设置行高 (让内容更好地显示)
-  worksheet['!rows'] = []
-  for (let R = 0; R <= range.e.r; ++R) {
-    worksheet['!rows'][R] = { hpx: R === 0 ? 25 : 20 } // 标题行稍高
+  // Calculate row heights dynamically based on content
+  const calculateRowHeight = (rowIndex: number): number => {
+    if (rowIndex === 0) return 30 // First row info
+    if (rowIndex === 1) return 10 // Second row empty
+    if (rowIndex === 2) return 25 // Third row headers
+
+    // For data rows, calculate based on content
+    let maxLines = 1
+    for (let C = 0; C < headers.length; ++C) {
+      const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: C })
+      const cell = worksheet[cellAddress]
+      if (!cell || !cell.v) continue
+
+      const content = String(cell.v)
+      const colWidth = worksheet['!cols'][C]?.wch || 10
+
+      // Account for explicit line breaks first
+      const explicitLines = (content.match(/\n/g) || []).length + 1
+
+      // Estimate lines needed based on content length and column width
+      // Excel column width unit is roughly 1 character width
+      // Use conservative estimate: 0.9 to account for character width variations
+      const charsPerLine = Math.max(1, Math.floor(colWidth * 0.9))
+      const estimatedLines = Math.ceil(content.length / charsPerLine)
+
+      // Take the maximum of explicit lines and estimated lines
+      const totalLines = Math.max(explicitLines, estimatedLines)
+
+      maxLines = Math.max(maxLines, totalLines)
+    }
+
+    // Calculate pixel height: ~15px per line + 6px padding
+    // Minimum height: 20px, Maximum height: 300px
+    const calculatedHeight = maxLines * 15 + 6
+    return Math.max(20, Math.min(calculatedHeight, 300))
   }
 
-  // 创建工作簿
+  worksheet['!rows'] = []
+  for (let R = 0; R <= range.e.r; ++R) {
+    worksheet['!rows'][R] = { hpx: calculateRowHeight(R) }
+  }
+
+  // Merge first row cells (span info across all columns)
+  worksheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }
+  ]
+
+  // Create workbook
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Papers')
 
-  // 导出为 ArrayBuffer
+  // Export as ArrayBuffer
   const excelBuffer = XLSX.write(workbook, {
     bookType: 'xlsx',
     type: 'array',
-    cellStyles: true, // 启用样式
   })
 
   return excelBuffer as ArrayBuffer

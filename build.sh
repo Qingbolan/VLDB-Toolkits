@@ -1,1 +1,1 @@
-$HOME/.cargo/env && npm run tauri:build
+source $HOME/.cargo/env && npm run tauri:build

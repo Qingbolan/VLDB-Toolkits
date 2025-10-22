@@ -108,10 +108,32 @@ export default function PapersPage() {
     return result;
   }, [papers, searchQuery, showWarningOnly, showLinkedAuthorsOnly, isAuthorLinked]);
 
-  // Handle export to CSV
+  // Handle export to Excel
   const handleExportExcel = () => {
-    // 使用 algorithms 中的导出函数
-    const excelBuffer = exportPapersToExcel(filteredPapers, authorMerges);
+    // Get current dataset label
+    let datasetLabel = 'All Datasets';
+    if (currentDatasetId && currentDatasetId !== 'all') {
+      const currentDataset = datasets.find(d => d.id === currentDatasetId);
+      if (currentDataset) {
+        datasetLabel = currentDataset.label;
+      }
+    }
+
+    // Build filter info string
+    const filterParts: string[] = [];
+    if (showWarningOnly) {
+      filterParts.push('Warning Only');
+    }
+    if (showLinkedAuthorsOnly) {
+      filterParts.push('Linked Authors Only');
+    }
+    if (searchQuery) {
+      filterParts.push(`Search: "${searchQuery}"`);
+    }
+    const filterInfo = filterParts.length > 0 ? filterParts.join(', ') : 'No filters applied';
+
+    // Use the export function from algorithms
+    const excelBuffer = exportPapersToExcel(filteredPapers, authorMerges, datasetLabel, filterInfo);
     const blob = new Blob([excelBuffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
