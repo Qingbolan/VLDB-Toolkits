@@ -77,6 +77,17 @@ def main():
         # On macOS with .app bundle, use 'open' command
         if platform.system() == "Darwin" and binary_path.suffix == "":
             app_bundle = binary_path.parent.parent.parent
+
+            # Remove macOS quarantine attribute to prevent "damaged" error
+            try:
+                subprocess.run(
+                    ["xattr", "-dr", "com.apple.quarantine", str(app_bundle)],
+                    capture_output=True,
+                    check=False  # Don't fail if xattr doesn't exist
+                )
+            except Exception:
+                pass  # Silently ignore if xattr command fails
+
             subprocess.run(["open", str(app_bundle)] + args, check=True)
         else:
             subprocess.run([str(binary_path)] + args, check=True)

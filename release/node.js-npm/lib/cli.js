@@ -100,6 +100,17 @@ async function main() {
     // On macOS with .app bundle, use 'open' command
     if (os.platform() === 'darwin' && binaryPath.includes('.app/')) {
       const appBundle = binaryPath.split('.app/')[0] + '.app';
+
+      // Remove macOS quarantine attribute to prevent "damaged" error
+      try {
+        const { execSync } = require('child_process');
+        execSync(`xattr -dr com.apple.quarantine "${appBundle}"`, {
+          stdio: 'ignore'
+        });
+      } catch (error) {
+        // Silently ignore if xattr command fails
+      }
+
       command = 'open';
       commandArgs = [appBundle, ...args];
     }
