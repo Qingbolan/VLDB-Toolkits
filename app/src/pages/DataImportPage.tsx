@@ -328,7 +328,7 @@ export default function DataImportPage() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                History
+                {t('import.history')}
               </h3>
               <Badge variant="secondary">{importHistory.length}</Badge>
             </div>

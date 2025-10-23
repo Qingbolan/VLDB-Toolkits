@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePaperStore } from '../store/paper-store';
+import { useI18n } from '../lib/i18n';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 
 export default function PaperDetailPage() {
+  const { t } = useI18n();
   const { paperId } = useParams<{ paperId: string }>();
   const navigate = useNavigate();
 
@@ -57,12 +59,12 @@ export default function PaperDetailPage() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
             <div>
-              <h3 className="font-semibold text-destructive mb-1">Paper not found</h3>
+              <h3 className="font-semibold text-destructive mb-1">{t('paperDetail.paperNotFound')}</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                The paper with ID {paperId} could not be found.
+                {t('paperDetail.paperNotFoundDesc').replace('{paperId}', paperId || '')}
               </p>
               <Button onClick={() => navigate('/papers')} size="sm">
-                Back to Papers
+                {t('paperDetail.backToPapers')}
               </Button>
             </div>
           </div>
@@ -76,7 +78,7 @@ export default function PaperDetailPage() {
       {/* Back Button */}
       <Button variant="ghost" onClick={() => navigate('/papers')} className="mb-4">
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Papers
+        {t('paperDetail.backToPapers')}
       </Button>
 
       {/* Paper Header */}
@@ -102,7 +104,7 @@ export default function PaperDetailPage() {
                 {paper.hasWarning && (
                   <Badge variant="destructive" className="ml-2">
                     <AlertTriangle className="h-3 w-3 mr-1" />
-                    Warning
+                    {t('paperDetail.warning')}
                   </Badge>
                 )}
               </div>
@@ -129,11 +131,9 @@ export default function PaperDetailPage() {
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-5 w-5 text-warning mt-0.5 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-warning mb-1">Quota Warning</p>
+                <p className="font-semibold text-warning mb-1">{t('paperDetail.quotaWarning')}</p>
                 <p className="text-sm text-muted-foreground">
-                  One or more authors of this paper have exceeded their submission
-                  quota. This paper is the 3rd or later submission for the highlighted
-                  author(s).
+                  {t('paperDetail.quotaWarningDesc')}
                 </p>
               </div>
             </div>
@@ -143,7 +143,7 @@ export default function PaperDetailPage() {
         {/* Abstract */}
         {paper.abstract && (
           <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-            <h3 className="font-semibold mb-2">Abstract</h3>
+            <h3 className="font-semibold mb-2">{t('paperDetail.abstract')}</h3>
             <p className="text-sm text-muted-foreground">{paper.abstract}</p>
           </div>
         )}
@@ -153,12 +153,12 @@ export default function PaperDetailPage() {
       <Tabs defaultValue="authors" className="w-full">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="authors">
-            Authors ({paper.authorNames.length})
+            {t('paperDetail.authors')} ({paper.authorNames.length})
           </TabsTrigger>
-          <TabsTrigger value="review">Review</TabsTrigger>
-          <TabsTrigger value="submission">Submission</TabsTrigger>
-          <TabsTrigger value="files">Files</TabsTrigger>
-          <TabsTrigger value="additional">Additional</TabsTrigger>
+          <TabsTrigger value="review">{t('paperDetail.review')}</TabsTrigger>
+          <TabsTrigger value="submission">{t('paperDetail.submission')}</TabsTrigger>
+          <TabsTrigger value="files">{t('paperDetail.files')}</TabsTrigger>
+          <TabsTrigger value="additional">{t('paperDetail.additional')}</TabsTrigger>
         </TabsList>
 
         {/* Authors Tab */}
@@ -187,18 +187,18 @@ export default function PaperDetailPage() {
                       <h3 className="text-lg font-semibold">{authorInfo.name}</h3>
                       {authorInfo.isCorresponding && (
                         <Badge variant="default" className="bg-blue-500 hover:bg-blue-600">
-                          ✉ Corresponding Author
+                          {t('paperDetail.correspondingAuthor')}
                         </Badge>
                       )}
                       {exceedsLimit && (
                         <Badge variant="destructive" className="ml-2">
                           <AlertTriangle className="h-3 w-3 mr-1" />
-                          Exceeds Quota
+                          {t('paperDetail.exceedsQuota')}
                         </Badge>
                       )}
                       {warningAuthor && (
                         <Badge variant="outline" className="border-warning text-warning">
-                          This paper is over quota
+                          {t('paperDetail.thisPaperOverQuota')}
                         </Badge>
                       )}
                     </div>
@@ -223,7 +223,7 @@ export default function PaperDetailPage() {
                         <div className="flex items-center gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">
-                              Total Submissions:{' '}
+                              {t('paperDetail.totalSubmissions')}{' '}
                             </span>
                             <span
                               className={`font-bold ${
@@ -234,7 +234,7 @@ export default function PaperDetailPage() {
                             </span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Quota: </span>
+                            <span className="text-muted-foreground">{t('paperDetail.quota')} </span>
                             <span className="font-bold">2</span>
                           </div>
                         </div>
@@ -242,7 +242,7 @@ export default function PaperDetailPage() {
                         {exceedsLimit && (
                           <div className="mt-4 p-3 bg-muted/50 rounded-lg">
                             <p className="text-sm font-semibold mb-2">
-                              All submissions by this author:
+                              {t('paperDetail.allSubmissionsByAuthor')}
                             </p>
                             <ul className="space-y-1 text-sm">
                               {stats.paperIds.map((pid, subIdx) => {
@@ -262,12 +262,12 @@ export default function PaperDetailPage() {
                                     <span className="flex-1">Paper ID {pid}</span>
                                     {isCurrent && (
                                       <Badge variant="default" className="text-xs">
-                                        Current
+                                        {t('paperDetail.current')}
                                       </Badge>
                                     )}
                                     {isOverQuota && (
                                       <Badge variant="destructive" className="text-xs">
-                                        Over Quota
+                                        {t('paperDetail.overQuota')}
                                       </Badge>
                                     )}
                                   </li>
@@ -292,31 +292,31 @@ export default function PaperDetailPage() {
           <Card className="p-5">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              Review Progress
+              {t('paperDetail.reviewProgress')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-muted-foreground">Assigned: </span>
+                <span className="text-muted-foreground">{t('paperDetail.assigned')} </span>
                 <span className="font-medium">{paper.assigned || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Completed: </span>
+                <span className="text-muted-foreground">{t('paperDetail.completed')} </span>
                 <span className="font-medium">{paper.completed || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Completion: </span>
+                <span className="text-muted-foreground">{t('paperDetail.completion')} </span>
                 <span className="font-medium">{paper.percentCompleted || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Conflicts: </span>
+                <span className="text-muted-foreground">{t('paperDetail.conflicts')} </span>
                 <span className="font-medium">{paper.conflicts || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Bids: </span>
+                <span className="text-muted-foreground">{t('paperDetail.bids')} </span>
                 <span className="font-medium">{paper.bids || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Discussion: </span>
+                <span className="text-muted-foreground">{t('paperDetail.discussion')} </span>
                 <span className="font-medium">{paper.discussion || 'N/A'}</span>
               </div>
             </div>
@@ -326,26 +326,26 @@ export default function PaperDetailPage() {
           <Card className="p-5">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Reviewers
+              {t('paperDetail.reviewers')}
             </h3>
             <div className="space-y-3 text-sm">
               <div>
-                <span className="text-muted-foreground font-medium">Reviewers: </span>
-                <p className="mt-1">{paper.reviewers || 'Not assigned'}</p>
+                <span className="text-muted-foreground font-medium">{t('paperDetail.reviewersLabel')} </span>
+                <p className="mt-1">{paper.reviewers || t('paperDetail.notAssigned')}</p>
                 {paper.reviewerEmails && (
                   <p className="text-xs text-muted-foreground mt-1">{paper.reviewerEmails}</p>
                 )}
               </div>
               <div>
-                <span className="text-muted-foreground font-medium">Meta-Reviewers: </span>
-                <p className="mt-1">{paper.metaReviewers || 'Not assigned'}</p>
+                <span className="text-muted-foreground font-medium">{t('paperDetail.metaReviewers')} </span>
+                <p className="mt-1">{paper.metaReviewers || t('paperDetail.notAssigned')}</p>
                 {paper.metaReviewerEmails && (
                   <p className="text-xs text-muted-foreground mt-1">{paper.metaReviewerEmails}</p>
                 )}
               </div>
               <div>
-                <span className="text-muted-foreground font-medium">Senior Meta-Reviewers: </span>
-                <p className="mt-1">{paper.seniorMetaReviewers || 'Not assigned'}</p>
+                <span className="text-muted-foreground font-medium">{t('paperDetail.seniorMetaReviewers')} </span>
+                <p className="mt-1">{paper.seniorMetaReviewers || t('paperDetail.notAssigned')}</p>
                 {paper.seniorMetaReviewerEmails && (
                   <p className="text-xs text-muted-foreground mt-1">{paper.seniorMetaReviewerEmails}</p>
                 )}
@@ -357,23 +357,23 @@ export default function PaperDetailPage() {
           <Card className="p-5">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Star className="h-5 w-5" />
-              Review Ratings
+              {t('paperDetail.reviewRatings')}
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div className="text-center p-3 bg-muted/50 rounded-lg">
-                <p className="text-muted-foreground text-xs mb-1">Min Rating</p>
+                <p className="text-muted-foreground text-xs mb-1">{t('paperDetail.minRating')}</p>
                 <p className="font-bold text-lg">{paper.reviewMinOverallRating || 'N/A'}</p>
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-lg">
-                <p className="text-muted-foreground text-xs mb-1">Max Rating</p>
+                <p className="text-muted-foreground text-xs mb-1">{t('paperDetail.maxRating')}</p>
                 <p className="font-bold text-lg">{paper.reviewMaxOverallRating || 'N/A'}</p>
               </div>
               <div className="text-center p-3 bg-primary/10 rounded-lg">
-                <p className="text-muted-foreground text-xs mb-1">Avg Rating</p>
+                <p className="text-muted-foreground text-xs mb-1">{t('paperDetail.avgRating')}</p>
                 <p className="font-bold text-lg text-primary">{paper.reviewAvgOverallRating || 'N/A'}</p>
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-lg">
-                <p className="text-muted-foreground text-xs mb-1">Spread</p>
+                <p className="text-muted-foreground text-xs mb-1">{t('paperDetail.spread')}</p>
                 <p className="font-bold text-lg">{paper.reviewSpreadOverallRating || 'N/A'}</p>
               </div>
             </div>
@@ -384,7 +384,7 @@ export default function PaperDetailPage() {
             <Card className="p-5 border-warning bg-warning/5">
               <h3 className="font-semibold mb-3 flex items-center gap-2 text-warning">
                 <MessageSquare className="h-5 w-5" />
-                Chair Note
+                {t('paperDetail.chairNote')}
               </h3>
               <p className="text-sm">{paper.chairNote}</p>
             </Card>
@@ -394,24 +394,24 @@ export default function PaperDetailPage() {
         {/* Submission Tab */}
         <TabsContent value="submission" className="space-y-4">
           <Card className="p-5">
-            <h3 className="font-semibold mb-3">Submission Status</h3>
+            <h3 className="font-semibold mb-3">{t('paperDetail.submissionStatus')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-muted-foreground">Author Feedback Requested: </span>
+                <span className="text-muted-foreground">{t('paperDetail.authorFeedbackRequested')} </span>
                 <span className="font-medium">{paper.requestedForAuthorFeedback || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Feedback Submitted: </span>
+                <span className="text-muted-foreground">{t('paperDetail.feedbackSubmitted')} </span>
                 <Badge variant={paper.authorFeedbackSubmitted === 'Yes' ? 'default' : 'secondary'}>
                   {paper.authorFeedbackSubmitted || 'N/A'}
                 </Badge>
               </div>
               <div>
-                <span className="text-muted-foreground">Camera Ready Requested: </span>
+                <span className="text-muted-foreground">{t('paperDetail.cameraReadyRequested')} </span>
                 <span className="font-medium">{paper.requestedForCameraReady || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Camera Ready Submitted: </span>
+                <span className="text-muted-foreground">{t('paperDetail.cameraReadySubmitted')} </span>
                 <Badge variant={paper.cameraReadySubmitted === 'Yes' ? 'default' : 'secondary'}>
                   {paper.cameraReadySubmitted || 'N/A'}
                 </Badge>
@@ -425,15 +425,15 @@ export default function PaperDetailPage() {
           <Card className="p-5">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <Paperclip className="h-5 w-5" />
-              Files & Attachments
+              {t('paperDetail.filesAttachments')}
             </h3>
             <div className="space-y-2 text-sm">
               <div>
-                <span className="text-muted-foreground">Number of Files: </span>
+                <span className="text-muted-foreground">{t('paperDetail.numberOfFiles')} </span>
                 <span className="font-medium">{paper.numberOfFiles || '0'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Supplementary Files: </span>
+                <span className="text-muted-foreground">{t('paperDetail.supplementaryFiles')} </span>
                 <span className="font-medium">{paper.numberOfSupplementaryFiles || '0'}</span>
               </div>
             </div>
@@ -445,20 +445,20 @@ export default function PaperDetailPage() {
           <Card className="p-5">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
-              Track & Subject Area
+              {t('paperDetail.trackSubjectArea')}
             </h3>
             <div className="space-y-2 text-sm">
               <div>
-                <span className="text-muted-foreground">Track: </span>
+                <span className="text-muted-foreground">{t('paperDetail.track')} </span>
                 <span className="font-medium">{paper.trackName || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-muted-foreground">Subject Area: </span>
+                <span className="text-muted-foreground">{t('paperDetail.subjectArea')} </span>
                 <span className="font-medium">{paper.primarySubjectArea || 'N/A'}</span>
               </div>
               {paper.secondarySubjectAreas.length > 0 && (
                 <div>
-                  <span className="text-muted-foreground">Secondary Areas: </span>
+                  <span className="text-muted-foreground">{t('paperDetail.secondaryAreas')} </span>
                   <span className="font-medium">
                     {paper.secondarySubjectAreas.join(', ')}
                   </span>

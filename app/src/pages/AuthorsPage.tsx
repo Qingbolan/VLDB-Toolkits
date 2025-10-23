@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useI18n } from '@/lib/i18n'
 import { PageHeader } from '@/components/page-header'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -70,6 +71,7 @@ import { exportAuthorsToExcel } from '@/algorithms'
 import type { AuthorStats } from '@/store/paper-types'
 
 export default function AuthorsPage() {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const getAllAuthors = usePaperStore(state => state.getAllAuthors)
   const getAuthorsWithWarning = usePaperStore(state => state.getAuthorsWithWarning)
@@ -201,14 +203,14 @@ export default function AuthorsPage() {
         <div className="text-center space-y-4">
           <Users className="h-16 w-16 mx-auto text-muted-foreground opacity-50" />
           <div>
-            <h2 className="text-2xl font-bold mb-2">No Authors Loaded</h2>
+            <h2 className="text-2xl font-bold mb-2">{t('authors.noAuthorsLoaded')}</h2>
             <p className="text-muted-foreground max-w-md">
-              Please import paper data first to view author statistics.
+              {t('authors.pleaseImport')}
             </p>
           </div>
           <Button size="lg" onClick={() => navigate('/import')}>
             <Download className="h-5 w-5 mr-2" />
-            Import Data
+            {t('authors.importData')}
           </Button>
         </div>
       </div>
@@ -486,8 +488,8 @@ export default function AuthorsPage() {
   return (
     <div className="container mx-auto px-8 py-6 space-y-6">
       <PageHeader
-        title="Author Management"
-        description="Manage authors, identify quota violations, and resolve email conflicts"
+        title={t('authors.title')}
+        description={t('authors.description')}
       >
         {/* Dataset Selector */}
         {datasets.length > 0 && (
@@ -495,10 +497,10 @@ export default function AuthorsPage() {
             <Database className="h-5 w-5 text-muted-foreground" />
             <Select value={currentDatasetId} onValueChange={setCurrentDataset}>
               <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder="Select dataset" />
+                <SelectValue placeholder={t('authors.selectDataset')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Datasets</SelectItem>
+                <SelectItem value="all">{t('authors.allDatasets')}</SelectItem>
                 {datasets.map((dataset) => (
                   <SelectItem key={dataset.id} value={dataset.id}>
                     {dataset.label}
@@ -518,7 +520,7 @@ export default function AuthorsPage() {
               <Users className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Authors</p>
+              <p className="text-sm text-muted-foreground">{t('authors.totalAuthors')}</p>
               <p className="text-2xl font-bold">{stats.total}</p>
             </div>
           </div>
@@ -530,7 +532,7 @@ export default function AuthorsPage() {
               <AlertTriangle className="h-5 w-5 text-warning" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Over Quota</p>
+              <p className="text-sm text-muted-foreground">{t('authors.overQuota')}</p>
               <p className="text-2xl font-bold text-warning">{stats.withWarning}</p>
             </div>
           </div>
@@ -542,7 +544,7 @@ export default function AuthorsPage() {
               <Mail className="h-5 w-5 text-destructive" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Email Conflicts</p>
+              <p className="text-sm text-muted-foreground">{t('authors.emailConflicts')}</p>
               <p className="text-2xl font-bold text-destructive">{stats.withEmailConflict}</p>
             </div>
           </div>
@@ -554,7 +556,7 @@ export default function AuthorsPage() {
               <Users className="h-5 w-5 text-orange-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Duplicate Names</p>
+              <p className="text-sm text-muted-foreground">{t('authors.duplicateNames')}</p>
               <p className="text-2xl font-bold text-orange-500">{stats.duplicateName}</p>
             </div>
           </div>
@@ -566,7 +568,7 @@ export default function AuthorsPage() {
               <Users className="h-5 w-5 text-purple-500" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Linked</p>
+              <p className="text-sm text-muted-foreground">{t('authors.linked')}</p>
               <p className="text-2xl font-bold text-purple-500">{stats.linked}</p>
             </div>
           </div>
@@ -578,7 +580,7 @@ export default function AuthorsPage() {
               <CheckCircle2 className="h-5 w-5 text-success" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Within Quota</p>
+              <p className="text-sm text-muted-foreground">{t('authors.withinQuota')}</p>
               <p className="text-2xl font-bold text-success">{stats.withinQuota}</p>
             </div>
           </div>
@@ -593,7 +595,7 @@ export default function AuthorsPage() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name, email, or organization..."
+                placeholder={t('authors.searchPlaceholder')}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -601,7 +603,7 @@ export default function AuthorsPage() {
             </div>
             <Button onClick={handleExport} variant="outline">
               <Download className="h-4 w-4 mr-2" />
-              Export
+              {t('authors.export')}
             </Button>
           </div>
           <br/>
@@ -613,7 +615,7 @@ export default function AuthorsPage() {
                 checked={showWarningOnly}
                 onCheckedChange={setShowWarningOnly}
               />
-              <Label htmlFor="warning-filter">Quota violations</Label>
+              <Label htmlFor="warning-filter">{t('authors.quotaViolations')}</Label>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -622,7 +624,7 @@ export default function AuthorsPage() {
                 checked={showEmailConflictOnly}
                 onCheckedChange={setShowEmailConflictOnly}
               />
-              <Label htmlFor="email-conflict-filter">Email conflicts</Label>
+              <Label htmlFor="email-conflict-filter">{t('authors.emailConflictsFilter')}</Label>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -631,7 +633,7 @@ export default function AuthorsPage() {
                 checked={showDuplicateNameOnly}
                 onCheckedChange={setShowDuplicateNameOnly}
               />
-              <Label htmlFor="duplicate-name-filter">Duplicate names</Label>
+              <Label htmlFor="duplicate-name-filter">{t('authors.duplicateNamesFilter')}</Label>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -640,18 +642,18 @@ export default function AuthorsPage() {
                 checked={showLinkedOnly}
                 onCheckedChange={setShowLinkedOnly}
               />
-              <Label htmlFor="linked-filter">Linked authors</Label>
+              <Label htmlFor="linked-filter">{t('authors.linkedAuthors')}</Label>
             </div>
 
             <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Sort by" />
+                <SelectValue placeholder={t('authors.sortBy')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="email">Email</SelectItem>
-                <SelectItem value="paperCount">Paper Count</SelectItem>
-                <SelectItem value="organization">Organization</SelectItem>
+                <SelectItem value="name">{t('authors.name')}</SelectItem>
+                <SelectItem value="email">{t('authors.email')}</SelectItem>
+                <SelectItem value="paperCount">{t('authors.paperCount')}</SelectItem>
+                <SelectItem value="organization">{t('authors.organization')}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -671,11 +673,13 @@ export default function AuthorsPage() {
                 }}
               >
                 <X className="h-4 w-4 mr-2" />
-                Clear Filters
+                {t('authors.clearFilters')}
               </Button>
             )}
             <div className="text-sm text-muted-foreground">
-              Showing {filteredAuthors.length} of {stats.total} authors
+              {t('authors.showingCount')
+                .replace('{count}', String(filteredAuthors.length))
+                .replace('{total}', String(stats.total))}
             </div>
           </div>
         </Card>
@@ -684,7 +688,7 @@ export default function AuthorsPage() {
         <Card className="w-80 p-6">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm">Selected for Link</h3>
+              <h3 className="font-semibold text-sm">{t('authors.selectedForLink')}</h3>
               {selectedAuthorsForLink.size > 0 && (
                 <Button
                   variant="ghost"
@@ -693,7 +697,7 @@ export default function AuthorsPage() {
                   className="h-6 text-xs"
                 >
                   <X className="h-3 w-3 mr-1" />
-                  Clear
+                  {t('authors.clear')}
                 </Button>
               )}
             </div>
@@ -702,7 +706,7 @@ export default function AuthorsPage() {
               <div className="text-center py-4">
                 <Link2 className="h-8 w-8 mx-auto mb-2 text-muted-foreground opacity-50" />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Click link icon to select
+                  {t('authors.clickToSelect')}
                 </p>
               </div>
             ) : (
@@ -728,7 +732,7 @@ export default function AuthorsPage() {
                             <div className="space-y-1">
                               <p className="font-semibold">{author.name}</p>
                               <p className="text-xs text-muted-foreground">{author.email}</p>
-                              <p className="text-xs">{author.paperCount} papers</p>
+                              <p className="text-xs">{author.paperCount} {t('authors.papers')}</p>
                             </div>
                           </TooltipContent>
                         </Tooltip>
@@ -744,12 +748,12 @@ export default function AuthorsPage() {
                   size="sm"
                 >
                   <Link2 className="h-4 w-4 mr-2" />
-                  Link {selectedAuthorsForLink.size} Authors
+                  {t('authors.linkAuthors').replace('{count}', String(selectedAuthorsForLink.size))}
                 </Button>
 
                 {selectedAuthorsForLink.size === 1 && (
                   <p className="text-xs text-muted-foreground text-center">
-                    Select at least one more author
+                    {t('authors.selectOneMore')}
                   </p>
                 )}
               </>
@@ -764,13 +768,13 @@ export default function AuthorsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Organization</TableHead>
-                <TableHead>Papers</TableHead>
-                <TableHead>Paper IDs</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead>{t('authors.name')}</TableHead>
+                <TableHead>{t('authors.email')}</TableHead>
+                <TableHead>{t('authors.organizationColumn')}</TableHead>
+                <TableHead>{t('authors.papersColumn')}</TableHead>
+                <TableHead>{t('authors.paperIds')}</TableHead>
+                <TableHead>{t('authors.statusColumn')}</TableHead>
+                <TableHead className="w-[100px]">{t('authors.actionsColumn')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -778,7 +782,7 @@ export default function AuthorsPage() {
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>No authors match your search criteria</p>
+                    <p>{t('authors.noAuthorsMatch')}</p>
                   </TableCell>
                 </TableRow>
               ) : (
@@ -857,11 +861,11 @@ export default function AuthorsPage() {
                                   </TooltipTrigger>
                                   <TooltipContent className="max-w-xs">
                                     <div className="space-y-2">
-                                      <p className="text-xs font-semibold">Linked Authors ({groupEmails.length})</p>
+                                      <p className="text-xs font-semibold">{t('authors.linkedAuthorsCount').replace('{count}', String(groupEmails.length))}</p>
 
                                       {/* Primary Author */}
                                       <div className="space-y-1 pb-2 border-b">
-                                        <p className="text-xs font-medium text-purple-500">Primary:</p>
+                                        <p className="text-xs font-medium text-purple-500">{t('authors.primary')}</p>
                                         <p className="text-xs">{mergeGroup.primaryName}</p>
                                         <p className="text-xs text-muted-foreground">{mergeGroup.primaryEmail}</p>
                                       </div>
@@ -869,7 +873,7 @@ export default function AuthorsPage() {
                                       {/* Merged Authors */}
                                       {mergeGroup.mergedEmails.length > 0 && (
                                         <div className="space-y-1">
-                                          <p className="text-xs font-medium text-purple-500">Merged:</p>
+                                          <p className="text-xs font-medium text-purple-500">{t('authors.merged')}</p>
                                           {mergeGroup.mergedEmails.map((email, idx) => (
                                             <div key={email} className="space-y-0.5 ml-2">
                                               <p className="text-xs">{mergeGroup.mergedNames[idx]}</p>
@@ -879,7 +883,7 @@ export default function AuthorsPage() {
                                         </div>
                                       )}
 
-                                      <p className="text-xs text-muted-foreground pt-2 border-t">Click to unlink</p>
+                                      <p className="text-xs text-muted-foreground pt-2 border-t">{t('authors.clickToUnlink')}</p>
                                     </div>
                                   </TooltipContent>
                                 </Tooltip>
@@ -942,18 +946,18 @@ export default function AuthorsPage() {
                         {author.hasWarning && (
                           <Badge variant="destructive" className="text-xs w-fit">
                             <AlertTriangle className="h-3 w-3 mr-1" />
-                            Over Quota
+                            {t('authors.overQuotaBadge')}
                           </Badge>
                         )}
                         {author.hasEmailConflict && (
                           <Badge variant="outline" className="border-destructive text-destructive text-xs w-fit">
                             <Mail className="h-3 w-3 mr-1" />
-                            Email Conflict
+                            {t('authors.emailConflictBadge')}
                           </Badge>
                         )}
                         {!author.hasWarning && !author.hasEmailConflict && (
                           <Badge variant="outline" className="text-xs w-fit">
-                            OK
+                            {t('authors.ok')}
                           </Badge>
                         )}
                       </div>
@@ -973,7 +977,7 @@ export default function AuthorsPage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Edit author</p>
+                              <p>{t('authors.editAuthor')}</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -991,7 +995,7 @@ export default function AuthorsPage() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>{selectedAuthorsForLink.has(author.email) ? 'Deselect' : 'Select'} for linking</p>
+                              <p>{selectedAuthorsForLink.has(author.email) ? t('authors.deselectForLinking') : t('authors.selectForLinking')}</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -1008,33 +1012,35 @@ export default function AuthorsPage() {
 
       {/* Footer info */}
       <div className="text-sm text-muted-foreground text-center">
-        Showing {filteredAuthors.length} of {stats.total} authors
-        {searchQuery && ` (filtered by "${searchQuery}")`}
+        {t('authors.showingCount')
+          .replace('{count}', String(filteredAuthors.length))
+          .replace('{total}', String(stats.total))}
+        {searchQuery && ` (${t('authors.filteredBy').replace('{query}', searchQuery)})`}
       </div>
 
       {/* Edit Author Dialog */}
       <Dialog open={!!editingAuthor} onOpenChange={() => setEditingAuthor(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Author Information</DialogTitle>
+            <DialogTitle>{t('authors.editAuthorInfo')}</DialogTitle>
             <DialogDescription>
-              Update author name or email address. This will affect all associated papers.
+              {t('authors.editAuthorDesc')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Author Name</Label>
+              <Label htmlFor="edit-name">{t('authors.authorName')}</Label>
               <Input
                 id="edit-name"
                 value={editName}
                 onChange={e => setEditName(e.target.value)}
-                placeholder="Author name"
+                placeholder={t('authors.authorName')}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-email">Email Address</Label>
+              <Label htmlFor="edit-email">{t('authors.emailAddress')}</Label>
               <Input
                 id="edit-email"
                 type="email"
@@ -1046,7 +1052,7 @@ export default function AuthorsPage() {
 
             {editingAuthor?.paperIds && editingAuthor.paperIds.length > 0 && (
               <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm font-medium mb-2">Associated Papers:</p>
+                <p className="text-sm font-medium mb-2">{t('authors.associatedPapers')}</p>
                 <div className="flex flex-wrap gap-1">
                   {editingAuthor.paperIds.map((paperId, idx) => (
                     <Badge key={idx} variant="secondary" className="text-xs">
@@ -1060,10 +1066,10 @@ export default function AuthorsPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingAuthor(null)}>
-              Cancel
+              {t('authors.cancel')}
             </Button>
             <Button onClick={handleSaveEdit}>
-              Save Changes
+              {t('authors.saveChanges')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1076,9 +1082,9 @@ export default function AuthorsPage() {
       }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Manage Linked Authors</DialogTitle>
+            <DialogTitle>{t('authors.manageLinkedAuthors')}</DialogTitle>
             <DialogDescription>
-              Select an author to remove from the link, or unlink all authors in this group.
+              {t('authors.manageLinkedDesc')}
             </DialogDescription>
           </DialogHeader>
 
@@ -1103,7 +1109,7 @@ export default function AuthorsPage() {
               return (
                 <>
                   <div className="p-4 bg-muted rounded-lg">
-                    <p className="text-sm font-medium mb-3">Select author to remove ({linkedAuthorsInfo.length} linked):</p>
+                    <p className="text-sm font-medium mb-3">{t('authors.selectToRemove').replace('{count}', String(linkedAuthorsInfo.length))}</p>
                     <div className="space-y-2">
                       {linkedAuthorsInfo.map((authorInfo) => {
                         // Get author paper statistics (from original data)
@@ -1130,13 +1136,13 @@ export default function AuthorsPage() {
                               </div>
                               <p className="font-semibold">{authorInfo.name}</p>
                               {authorInfo.isPrimary && (
-                                <Badge variant="outline" className="text-xs bg-blue-500/10 border-blue-500/30">Primary</Badge>
+                                <Badge variant="outline" className="text-xs bg-blue-500/10 border-blue-500/30">{t('authors.primaryBadge')}</Badge>
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground ml-6">{authorInfo.email}</p>
                             {originalAuthor && (
                               <p className="text-xs text-muted-foreground mt-1 ml-6">
-                                {originalAuthor.paperCount} paper{originalAuthor.paperCount > 1 ? 's' : ''}
+                                {originalAuthor.paperCount} {originalAuthor.paperCount > 1 ? t('authors.paperPlural') : t('authors.paperSingular')}
                               </p>
                             )}
                           </div>
@@ -1148,8 +1154,10 @@ export default function AuthorsPage() {
                   {linkedAuthorsInfo.length > 2 && selectedEmailToRemove && (
                     <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/30">
                       <p className="text-sm text-blue-700 dark:text-blue-300">
-                        <strong>Note:</strong> Removing "{linkedAuthorsInfo.find(a => a.email === selectedEmailToRemove)?.name}"
-                        will keep the remaining {linkedAuthorsInfo.length - 1} author{linkedAuthorsInfo.length - 1 > 1 ? 's' : ''} linked.
+                        <strong>{t('authors.removeNote')
+                          .replace('{name}', linkedAuthorsInfo.find(a => a.email === selectedEmailToRemove)?.name || '')
+                          .replace('{count}', String(linkedAuthorsInfo.length - 1))
+                          .replace('{s}', linkedAuthorsInfo.length - 1 > 1 ? 's' : '')}</strong>
                       </p>
                     </div>
                   )}
@@ -1163,7 +1171,7 @@ export default function AuthorsPage() {
               setUnlinkingAuthor(null)
               setSelectedEmailToRemove('')
             }} className="w-full sm:w-auto">
-              Cancel
+              {t('authors.cancel')}
             </Button>
             <div className="flex gap-2 w-full sm:w-auto">
               <Button
@@ -1171,14 +1179,14 @@ export default function AuthorsPage() {
                 onClick={handleUnlinkAll}
                 className="flex-1 sm:flex-initial"
               >
-                Unlink All
+                {t('authors.unlinkAll')}
               </Button>
               <Button
                 onClick={handleRemoveFromLink}
                 disabled={!selectedEmailToRemove}
                 className="flex-1 sm:flex-initial"
               >
-                Remove Selected
+                {t('authors.removeSelected')}
               </Button>
             </div>
           </DialogFooter>
@@ -1191,27 +1199,27 @@ export default function AuthorsPage() {
           <AlertDialogHeader>
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-6 w-6 text-green-600" />
-              <AlertDialogTitle>Export Successful</AlertDialogTitle>
+              <AlertDialogTitle>{t('authors.exportSuccess')}</AlertDialogTitle>
             </div>
             <AlertDialogDescription className="pt-2">
               {exportedFilePath ? (
                 <>
-                  File exported successfully to:
+                  {t('authors.exportedTo')}
                   <div className="mt-2 p-2 bg-muted rounded text-sm font-mono break-all">
                     {exportedFilePath}
                   </div>
                 </>
               ) : (
-                'File downloaded successfully to your Downloads folder.'
+                t('authors.downloadedTo')
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
+            <AlertDialogCancel>{t('authors.close')}</AlertDialogCancel>
             {exportedFilePath && (
               <AlertDialogAction onClick={handleShowInExplorer}>
                 <FolderOpen className="h-4 w-4 mr-2" />
-                Show in Finder
+                {t('authors.showInFinder')}
               </AlertDialogAction>
             )}
           </AlertDialogFooter>

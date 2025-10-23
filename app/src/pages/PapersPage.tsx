@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePaperStore } from '../store/paper-store';
+import { useI18n } from '../lib/i18n';
 import {
   Table,
   TableBody,
@@ -44,6 +45,7 @@ import { filterPapers } from '../lib/paper-utils';
 import { exportPapersToExcel } from '@/algorithms';
 
 export default function PapersPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const papers = usePaperStore((state) => state.papers);
   const authors = usePaperStore((state) => state.authors);
@@ -222,14 +224,14 @@ export default function PapersPage() {
         <div className="text-center space-y-4">
           <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-50" />
           <div>
-            <h2 className="text-2xl font-bold mb-2">No Papers Loaded</h2>
+            <h2 className="text-2xl font-bold mb-2">{t('papers.noPapersLoaded')}</h2>
             <p className="text-muted-foreground max-w-md">
-              Please import paper data first to view paper submissions.
+              {t('papers.pleaseImport')}
             </p>
           </div>
           <Button size="lg" onClick={() => navigate('/import')}>
             <Download className="h-5 w-5 mr-2" />
-            Import Data
+            {t('papers.importData')}
           </Button>
         </div>
       </div>
@@ -239,8 +241,8 @@ export default function PapersPage() {
   return (
     <div className="container mx-auto px-8 py-6 space-y-6">
       <PageHeader
-        title="Paper Submissions"
-        description="Browse all paper submissions and identify potential quota violations"
+        title={t('papers.title')}
+        description={t('papers.description')}
       >
         {/* Dataset Selector */}
         {datasets.length > 0 && (
@@ -248,10 +250,10 @@ export default function PapersPage() {
             <Database className="h-5 w-5 text-muted-foreground" />
             <Select value={currentDatasetId} onValueChange={setCurrentDataset}>
               <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder="Select dataset" />
+                <SelectValue placeholder={t('papers.selectDataset')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Datasets</SelectItem>
+                <SelectItem value="all">{t('papers.allDatasets')}</SelectItem>
                 {datasets.map((dataset) => (
                   <SelectItem key={dataset.id} value={dataset.id}>
                     {dataset.label}
@@ -271,7 +273,7 @@ export default function PapersPage() {
               <FileText className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Papers</p>
+              <p className="text-sm text-muted-foreground">{t('papers.totalPapers')}</p>
               <p className="text-2xl font-bold">{papers.length}</p>
             </div>
           </div>
@@ -283,7 +285,7 @@ export default function PapersPage() {
               <AlertTriangle className="h-5 w-5 text-warning" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Papers with Warnings</p>
+              <p className="text-sm text-muted-foreground">{t('papers.papersWithWarnings')}</p>
               <p className="text-2xl font-bold">
                 {papers.filter((p) => p.hasWarning).length}
               </p>
@@ -297,7 +299,7 @@ export default function PapersPage() {
               <FileText className="h-5 w-5 text-success" />
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Papers OK</p>
+              <p className="text-sm text-muted-foreground">{t('papers.papersOK')}</p>
               <p className="text-2xl font-bold">
                 {papers.filter((p) => !p.hasWarning).length}
               </p>
@@ -311,7 +313,7 @@ export default function PapersPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by paper ID, title, or author..."
+            placeholder={t('papers.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -329,7 +331,7 @@ export default function PapersPage() {
             <Label htmlFor="warning-filter" className="text-sm cursor-pointer">
               <div className="flex items-center gap-1.5">
                 <AlertTriangle className="h-4 w-4 text-warning" />
-                Warning Only
+                {t('papers.warningOnly')}
               </div>
             </Label>
           </div>
@@ -344,7 +346,7 @@ export default function PapersPage() {
             <Label htmlFor="linked-filter" className="text-sm cursor-pointer">
               <div className="flex items-center gap-1.5">
                 <Link2 className="h-4 w-4 text-purple-500" />
-                Linked Authors
+                {t('papers.linkedAuthors')}
               </div>
             </Label>
           </div>
@@ -357,7 +359,7 @@ export default function PapersPage() {
             disabled={filteredPapers.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
-            Export Excel
+            {t('papers.exportExcel')}
           </Button>
         </div>
       </div>
@@ -368,18 +370,18 @@ export default function PapersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[100px]">Paper ID</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Authors</TableHead>
-                <TableHead className="w-[100px]">Status</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead className="w-[100px]">{t('papers.paperId')}</TableHead>
+                <TableHead>{t('papers.title.column')}</TableHead>
+                <TableHead>{t('papers.authors')}</TableHead>
+                <TableHead className="w-[100px]">{t('papers.status')}</TableHead>
+                <TableHead className="w-[100px]">{t('papers.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredPapers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    No papers found
+                    {t('papers.noPapersFound')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -491,14 +493,14 @@ export default function PapersPage() {
 
                                       <div className="pt-1 border-t border-border/50">
                                         <p className="text-xs">
-                                          📊 Total submissions: <span className="font-medium">{totalPapers}</span>
+                                          {t('papers.totalSubmissions')}: <span className="font-medium">{totalPapers}</span>
                                         </p>
                                         <p className="text-xs">
-                                          📝 This is paper #{paperRank} (by Paper ID)
+                                          {t('papers.thisPaper').replace('{rank}', String(paperRank))}
                                         </p>
                                       </div>
                                       {isCorresponding && (
-                                        <p className="text-xs text-blue-400 font-medium pt-1">✉ Corresponding Author</p>
+                                        <p className="text-xs text-blue-400 font-medium pt-1">{t('papers.correspondingAuthor')}</p>
                                       )}
                                     </div>
                                   </TooltipContent>
@@ -509,18 +511,18 @@ export default function PapersPage() {
                         </TooltipProvider>
                         {paper.hasWarning && (
                           <p className="text-xs text-warning mt-1.5">
-                            ⚠ {paper.warningAuthors.length} author(s) exceeded quota
+                            ⚠ {paper.warningAuthors.length} {t('papers.authorsExceeded')}
                           </p>
                         )}
                       </TableCell>
                       <TableCell>
                         {paper.hasWarning ? (
                           <Badge variant="destructive" className="text-xs">
-                            Warning
+                            {t('papers.warning')}
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-xs">
-                            OK
+                            {t('papers.ok')}
                           </Badge>
                         )}
                       </TableCell>
@@ -530,7 +532,7 @@ export default function PapersPage() {
                           variant="outline"
                           onClick={() => navigate(`/papers/${paper.paperId}`)}
                         >
-                          View
+                          {t('papers.view')}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -544,8 +546,10 @@ export default function PapersPage() {
 
       {/* Footer info */}
       <div className="text-sm text-muted-foreground text-center">
-        Showing {filteredPapers.length} of {papers.length} papers
-        {searchQuery && ` (filtered by "${searchQuery}")`}
+        {t('papers.showingCount')
+          .replace('{count}', String(filteredPapers.length))
+          .replace('{total}', String(papers.length))}
+        {searchQuery && ` (${t('papers.filteredBy').replace('{query}', searchQuery)})`}
       </div>
 
       {/* Export success dialog */}
@@ -554,27 +558,27 @@ export default function PapersPage() {
           <AlertDialogHeader>
             <div className="flex items-center gap-3">
               <CheckCircle2 className="h-6 w-6 text-green-600" />
-              <AlertDialogTitle>Export Successful</AlertDialogTitle>
+              <AlertDialogTitle>{t('papers.exportSuccess')}</AlertDialogTitle>
             </div>
             <AlertDialogDescription className="pt-2">
               {exportedFilePath ? (
                 <>
-                  File exported successfully to:
+                  {t('papers.exportedTo')}
                   <div className="mt-2 p-2 bg-muted rounded text-sm font-mono break-all">
                     {exportedFilePath}
                   </div>
                 </>
               ) : (
-                'File downloaded successfully to your Downloads folder.'
+                t('papers.downloadedTo')
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
+            <AlertDialogCancel>{t('papers.close')}</AlertDialogCancel>
             {exportedFilePath && (
               <AlertDialogAction onClick={handleShowInExplorer}>
                 <FolderOpen className="h-4 w-4 mr-2" />
-                Show in Finder
+                {t('papers.showInFinder')}
               </AlertDialogAction>
             )}
           </AlertDialogFooter>
