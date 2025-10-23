@@ -37,10 +37,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "publisher": "EASYNET Inc.",
-    "copyright": "© 2025 EASYNET Inc.",
-    "category": "Business",
-    "shortDescription": "Paper Management Platform",
+    "publisher": "Silan Hu(silan.hu@u.nus.edu).",
+    "copyright": "© 2025 Silan Hu.",
+    "category": "Academic",
+    "shortDescription": "Paper Management Platform for VLDB",
     "longDescription": "VLDB-Toolkits is a desktop application for managing academic papers and author information. Import Excel data, track paper metadata, manage author profiles, and export organized datasets.",
     "macOS": {
       "entitlements": "entitlements.plist",

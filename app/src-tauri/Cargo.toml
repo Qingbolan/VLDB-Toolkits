@@ -2,9 +2,9 @@
 name = "vldb_toolkits"
 version = "0.1.0"
 description = "VLDB-Toolkits - Paper Management Platform"
-authors = ["EASYNET Inc."]
-license = ""
-repository = ""
+authors = ["Silan Hu(silan.hu@u.nus.edu)"]
+license = "MIT"
+repository = "https://github.com/Qingbolan/VLDB-Toolkits"
 edition = "2021"
 
 [lib]
