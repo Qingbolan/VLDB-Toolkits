@@ -1,0 +1,116 @@
+name: Test Build (No Publish)
+
+on:
+  push:
+    branches:
+      - main        # 每次 push 到 main 都会触发
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS builds
+          - platform: macos
+            arch: aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            asset_name: VLDB-Toolkits_macos_aarch64.app.tar.gz
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Install npm dependencies
+      - name: Install frontend dependencies
+        working-directory: ./app
+        run: npm install
+
+      # Build Tauri app
+      - name: Build Tauri app
+        working-directory: ./app
+        run: npm run tauri:build -- --target ${{ matrix.target }}
+
+      # Package macOS builds
+      - name: Package macOS build
+        if: matrix.platform == 'macos'
+        working-directory: ./app/src-tauri/target/${{ matrix.target }}/release/bundle/macos
+        run: |
+          tar -czf ${{ matrix.asset_name }} VLDB-Toolkits.app
+
+      # Upload artifacts
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
+          if-no-files-found: error
+
+  test-python:
+    name: Test Python Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build Python package
+        working-directory: ./release/python-pip
+        run: python -m build
+
+      - name: Check package
+        working-directory: ./release/python-pip
+        run: twine check dist/*
+
+  test-npm:
+    name: Test npm Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./release/node.js-npm
+        run: npm install
+
+      - name: Run tests
+        working-directory: ./release/node.js-npm
+        run: npm test
+
+      - name: Test package
+        working-directory: ./release/node.js-npm
+        run: npm pack --dry-run
