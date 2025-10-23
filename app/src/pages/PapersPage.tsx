@@ -28,7 +28,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../components/ui/tooltip';
-import { AlertTriangle, FileText, Search, Download, Database, Link2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import { AlertTriangle, FileText, Search, Download, Database, Link2, FolderOpen, CheckCircle2 } from 'lucide-react';
 import { PageHeader } from '../components/page-header';
 import { filterPapers } from '../lib/paper-utils';
 import { exportPapersToExcel } from '@/algorithms';
@@ -44,6 +54,8 @@ export default function PapersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showWarningOnly, setShowWarningOnly] = useState(false);
   const [showLinkedAuthorsOnly, setShowLinkedAuthorsOnly] = useState(false);
+  const [showExportSuccess, setShowExportSuccess] = useState(false);
+  const [exportedFilePath, setExportedFilePath] = useState<string>('');
 
   // Helper function to check if an author email is linked
   const isAuthorLinked = (email: string): boolean => {
@@ -109,44 +121,98 @@ export default function PapersPage() {
   }, [papers, searchQuery, showWarningOnly, showLinkedAuthorsOnly, isAuthorLinked]);
 
   // Handle export to Excel
-  const handleExportExcel = () => {
-    // Get current dataset label
-    let datasetLabel = 'All Datasets';
-    if (currentDatasetId && currentDatasetId !== 'all') {
-      const currentDataset = datasets.find(d => d.id === currentDatasetId);
-      if (currentDataset) {
-        datasetLabel = currentDataset.label;
+  const handleExportExcel = async () => {
+    try {
+      // Get current dataset label
+      let datasetLabel = 'All Datasets';
+      if (currentDatasetId && currentDatasetId !== 'all') {
+        const currentDataset = datasets.find(d => d.id === currentDatasetId);
+        if (currentDataset) {
+          datasetLabel = currentDataset.label;
+        }
       }
-    }
 
-    // Build filter info string
-    const filterParts: string[] = [];
-    if (showWarningOnly) {
-      filterParts.push('Warning Only');
-    }
-    if (showLinkedAuthorsOnly) {
-      filterParts.push('Linked Authors Only');
-    }
-    if (searchQuery) {
-      filterParts.push(`Search: "${searchQuery}"`);
-    }
-    const filterInfo = filterParts.length > 0 ? filterParts.join(', ') : 'No filters applied';
+      // Build filter info string
+      const filterParts: string[] = [];
+      if (showWarningOnly) {
+        filterParts.push('Warning Only');
+      }
+      if (showLinkedAuthorsOnly) {
+        filterParts.push('Linked Authors Only');
+      }
+      if (searchQuery) {
+        filterParts.push(`Search: "${searchQuery}"`);
+      }
+      const filterInfo = filterParts.length > 0 ? filterParts.join(', ') : 'No filters applied';
 
-    // Use the export function from algorithms
-    const excelBuffer = exportPapersToExcel(filteredPapers, authorMerges, datasetLabel, filterInfo);
-    const blob = new Blob([excelBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
+      // Use the export function from algorithms
+      const excelBuffer = await exportPapersToExcel(filteredPapers, authorMerges, datasetLabel, filterInfo);
 
-    link.setAttribute('href', url);
-    link.setAttribute('download', `papers_export_${new Date().toISOString().split('T')[0]}.xlsx`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      // Check if we're in Tauri environment
+      const isTauri = '__TAURI__' in window;
+
+      if (isTauri) {
+        // Tauri environment - use native save dialog
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { writeFile } = await import('@tauri-apps/plugin-fs');
+
+        const defaultFileName = `papers_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+        const filePath = await save({
+          defaultPath: defaultFileName,
+          filters: [{
+            name: 'Excel',
+            extensions: ['xlsx']
+          }]
+        });
+
+        if (!filePath) {
+          // User canceled the save dialog
+          return;
+        }
+
+        // Write file using Tauri API
+        await writeFile(filePath, new Uint8Array(excelBuffer));
+
+        // Show success dialog
+        setExportedFilePath(filePath);
+        setShowExportSuccess(true);
+      } else {
+        // Browser environment - use blob download
+        const blob = new Blob([excelBuffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', `papers_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        // Show success dialog (without file path for browser)
+        setExportedFilePath('');
+        setShowExportSuccess(true);
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+
+  // Handle showing file in explorer
+  const handleShowInExplorer = async () => {
+    try {
+      // macOS: use 'open -R' to reveal file in Finder
+      const { Command } = await import('@tauri-apps/plugin-shell');
+      const command = Command.create('open', ['-R', exportedFilePath]);
+      await command.execute();
+      setShowExportSuccess(false);
+    } catch (error) {
+      console.error('Failed to show file in explorer:', error);
+    }
   };
 
   // If no datasets exist at all
@@ -481,6 +547,39 @@ export default function PapersPage() {
         Showing {filteredPapers.length} of {papers.length} papers
         {searchQuery && ` (filtered by "${searchQuery}")`}
       </div>
+
+      {/* Export success dialog */}
+      <AlertDialog open={showExportSuccess} onOpenChange={setShowExportSuccess}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-6 w-6 text-green-600" />
+              <AlertDialogTitle>Export Successful</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="pt-2">
+              {exportedFilePath ? (
+                <>
+                  File exported successfully to:
+                  <div className="mt-2 p-2 bg-muted rounded text-sm font-mono break-all">
+                    {exportedFilePath}
+                  </div>
+                </>
+              ) : (
+                'File downloaded successfully to your Downloads folder.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+            {exportedFilePath && (
+              <AlertDialogAction onClick={handleShowInExplorer}>
+                <FolderOpen className="h-4 w-4 mr-2" />
+                Show in Finder
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

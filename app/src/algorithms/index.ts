@@ -34,4 +34,5 @@ export {
 // Excel export related
 export {
   exportPapersToExcel,
+  exportAuthorsToExcel,
 } from './excel-exporter'

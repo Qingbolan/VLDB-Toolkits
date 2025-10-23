@@ -1,10 +1,10 @@
 /**
  * Excel Export Algorithm Module
- * Handle exporting Papers data to styled Excel files
+ * Handle exporting Papers and Authors data to styled Excel files using ExcelJS
  */
 
-import * as XLSX from 'xlsx-js-style'
-import type { Paper, AuthorMerge } from '@/store/paper-types'
+import ExcelJS from 'exceljs'
+import type { Paper, AuthorMerge, AuthorStats } from '@/store/paper-types'
 
 /**
  * Export Papers to Excel with marking and styling
@@ -14,12 +14,12 @@ import type { Paper, AuthorMerge } from '@/store/paper-types'
  * @param filterInfo - Filter information
  * @returns ArrayBuffer of Excel file
  */
-export const exportPapersToExcel = (
+export const exportPapersToExcel = async (
   papers: Paper[],
   authorMerges: AuthorMerge[],
   datasetLabel: string = 'All Datasets',
   filterInfo: string = 'No filters applied'
-): ArrayBuffer => {
+): Promise<ArrayBuffer> => {
   // Create email to merge group mapping
   const emailToMergeGroup = new Map<string, AuthorMerge>()
   authorMerges.forEach(merge => {
@@ -29,110 +29,27 @@ export const exportPapersToExcel = (
     })
   })
 
-  // Prepare data rows
-  const rows = papers.map(paper => {
-    // Check if has warning
-    const isMarked = paper.hasWarning
-
-    // Generate note: list all warning authors and reasons
-    let note = ''
-    if (paper.warningAuthors && paper.warningAuthors.length > 0) {
-      note = paper.warningAuthors
-        .map(wa => `${wa.name} (${wa.email}): Over quota - ${wa.paperCount} papers, this is paper #${wa.paperRank}`)
-        .join('; ')
-    }
-
-    // Check if has linked authors
-    const linkedAuthorEmails = paper.authorEmails.filter(email => emailToMergeGroup.has(email))
-    let addition = ''
-    if (linkedAuthorEmails.length > 0) {
-      const linkedAuthorsInfo = linkedAuthorEmails.map(email => {
-        const merge = emailToMergeGroup.get(email)!
-        const allEmails = [merge.primaryEmail, ...merge.mergedEmails]
-        return `${paper.authorNames[paper.authorEmails.indexOf(email)]} linked with ${allEmails.length - 1} other(s)`
-      })
-      addition = linkedAuthorsInfo.join('; ')
-    }
-
-    // Mark warning authors
-
-    // Build author list with organizations, mark corresponding authors with *
-    const authorsList = paper.authorNames.map((name, idx) => {
-      const isCorresponding = paper.correspondingAuthorIndices.includes(idx)
-      const organization = paper.authorOrganizations[idx] || ''
-      const authorWithOrg = organization ? `${name} (${organization})` : name
-      return isCorresponding ? authorWithOrg + '*' : authorWithOrg
-    }).join('; ')
-
-    // Corresponding authors
-    const correspondingAuthors = paper.authorNames
-      .filter((_, idx) => paper.correspondingAuthorIndices.includes(idx))
-      .join('; ')
-
-    return {
-      'Paper ID': paper.paperId,
-      'Original Paper ID': paper.originalPaperId,
-      'Created': paper.created,
-      'Last Modified': paper.lastModified,
-      'Paper Title': paper.title,
-      'Abstract': paper.abstract,
-      'Primary Contact Author Name': paper.primaryContactAuthorName,
-      'Primary Contact Author Email': paper.primaryContactAuthorEmail,
-      'Authors': authorsList,
-      'Author Names': paper.authorNames.join('; '),
-      'Author Emails': paper.authorEmails.join('; '),
-      'Track Name': paper.trackName,
-      'Primary Subject Area': paper.primarySubjectArea,
-      'Secondary Subject Areas': paper.secondarySubjectAreas.join('; '),
-      'Conflicts': paper.conflicts,
-      'Assigned': paper.assigned,
-      'Completed': paper.completed,
-      '% Completed': paper.percentCompleted,
-      'Bids': paper.bids,
-      'Discussion': paper.discussion,
-      'Status': paper.status,
-      'Requested For Author Feedback': paper.requestedForAuthorFeedback,
-      'Author Feedback Submitted?': paper.authorFeedbackSubmitted,
-      'Requested For Camera Ready': paper.requestedForCameraReady,
-      'Camera Ready Submitted?': paper.cameraReadySubmitted,
-      'Requested For Presentation': paper.requestedForPresentation,
-      'Files': paper.files,
-      'Number of Files': paper.numberOfFiles,
-      'Supplementary Files': paper.supplementaryFiles,
-      'Number of Supplementary Files': paper.numberOfSupplementaryFiles,
-      'Reviewers': paper.reviewers,
-      'Reviewer Emails': paper.reviewerEmails,
-      'MetaReviewers': paper.metaReviewers,
-      'MetaReviewer Emails': paper.metaReviewerEmails,
-      'SeniorMetaReviewers': paper.seniorMetaReviewers,
-      'SeniorMetaReviewerEmails': paper.seniorMetaReviewerEmails,
-      'Chair Note (Reject reason)': paper.chairNote,
-      '[Review] Min (Overall Rating)': paper.reviewMinOverallRating,
-      '[Review] Max (Overall Rating)': paper.reviewMaxOverallRating,
-      '[Review] Avg (Overall Rating)': paper.reviewAvgOverallRating,
-      '[Review] Spread (Overall Rating)': paper.reviewSpreadOverallRating,
-
-      // New columns for organization and corresponding author info
-      'Organizations': paper.authorOrganizations.join('; '),
-      'Corresponding Authors': correspondingAuthors,
-
-      // Marking columns
-      'Is Marked': isMarked ? 'Yes' : 'No',
-      'Note': note,
-      'Addition': addition,
-    }
-  })
-
-  // Create empty worksheet
-  const worksheet: any = {}
+  // Create workbook and worksheet
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Papers')
 
   // First row: Dataset label and filter conditions
   const infoText = `Dataset: ${datasetLabel} | Filters: ${filterInfo}`
-  worksheet['A1'] = { v: infoText, t: 's' }
+  worksheet.getRow(1).height = 30
+  const infoCell = worksheet.getCell('A1')
+  infoCell.value = infoText
+  infoCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 }
+  infoCell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF3B82F6' }
+  }
+  infoCell.alignment = { horizontal: 'left', vertical: 'middle' }
 
   // Second row: Empty
+  worksheet.getRow(2).height = 10
 
-  // Third row: Column headers (matching original format)
+  // Third row: Column headers
   const headers = [
     'Paper ID', 'Original Paper ID', 'Created', 'Last Modified',
     'Paper Title', 'Abstract',
@@ -149,238 +66,551 @@ export const exportPapersToExcel = (
     'Chair Note (Reject reason)',
     '[Review] Min (Overall Rating)', '[Review] Max (Overall Rating)',
     '[Review] Avg (Overall Rating)', '[Review] Spread (Overall Rating)',
-    // New columns for additional info
     'Organizations', 'Corresponding Authors',
-    // Marking columns
     'Is Marked', 'Note', 'Addition'
   ]
 
-  headers.forEach((header, colIdx) => {
-    const cellAddress = XLSX.utils.encode_cell({ r: 2, c: colIdx })
-    worksheet[cellAddress] = { v: header, t: 's' }
-  })
-
-  // Add data starting from row 4
-  rows.forEach((row, rowIdx) => {
-    const dataRow = rowIdx + 3 // Start from row 4 (index 3)
-    // Write data in headers order
-    headers.forEach((header, colIdx) => {
-      const cellAddress = XLSX.utils.encode_cell({ r: dataRow, c: colIdx })
-          const value = (row as Record<string, unknown>)[header]
-      worksheet[cellAddress] = { v: value, t: typeof value === 'number' ? 'n' : 's' }
-    })
-  })
-
-  // Set worksheet range
-  const range = {
-    s: { r: 0, c: 0 },
-    e: { r: rows.length + 2, c: headers.length - 1 }
-  }
-  worksheet['!ref'] = XLSX.utils.encode_range(range)
-
-  // Apply styles
-  for (let R = range.s.r; R <= range.e.r; ++R) {
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const cellAddress = XLSX.utils.encode_cell({ r: R, c: C })
-
-      // Ensure cell exists, even if empty
-      if (!worksheet[cellAddress]) {
-        worksheet[cellAddress] = { v: '', t: 's' }
-      }
-
-      // Initialize cell style
-      if (!worksheet[cellAddress].s) {
-        worksheet[cellAddress].s = {}
-      }
-
-      // First row: Info row style (blue background, white bold)
-      if (R === 0) {
-        worksheet[cellAddress].s = {
-          font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 12 },
-          fill: { patternType: 'solid', fgColor: { rgb: '3B82F6' } },
-          alignment: { horizontal: 'left', vertical: 'center' },
-        }
-      }
-      // Second row: Empty, no style
-      else if (R === 1) {
-        // Empty row
-      }
-      // Third row: Header row style (dark gray background, white text)
-      else if (R === 2) {
-        worksheet[cellAddress].s = {
-          font: { bold: true, color: { rgb: 'FFFFFF' } },
-          fill: { patternType: 'solid', fgColor: { rgb: '4A5568' } },
-          alignment: { horizontal: 'center', vertical: 'center' },
-        }
-      }
-      // Data rows (starting from row 4, index 3)
-      else {
-        const paper = papers[R - 3] // Subtract 3 rows (info, empty, header)
-
-        // Warning records use rose pink background (MistyRose/Light Rose)
-        if (paper.hasWarning) {
-          worksheet[cellAddress].s = {
-            fill: { patternType: 'solid', fgColor: { rgb: 'FFE4E8' } }, // Rose Pink
-            alignment: { vertical: 'top', wrapText: true },
-          }
-        } else {
-          worksheet[cellAddress].s = {
-            alignment: { vertical: 'top', wrapText: true },
-          }
-        }
-
-        // Special column handling - column name in row 3 (index 2)
-        const headerCell = worksheet[XLSX.utils.encode_cell({ r: 2, c: C })]
-        const colName = headerCell?.v
-
-        // Authors column: only mark warning authors in red
-        if (colName === 'Authors') {
-          const hasWarningAuthors = paper.warningAuthors && paper.warningAuthors.length > 0
-
-          if (hasWarningAuthors) {
-            // Has warning authors - red bold text
-            worksheet[cellAddress].s.font = { color: { rgb: 'DC2626' }, bold: true }
-          }
-        }
-
-        // Note column - if has content, use orange text for emphasis
-        if (colName === 'Note' && worksheet[cellAddress].v) {
-          if (!worksheet[cellAddress].s.font) {
-            worksheet[cellAddress].s.font = {}
-          }
-          worksheet[cellAddress].s.font.color = { rgb: 'EA580C' }
-        }
-
-        // Addition column - if has content, use purple text
-        if (colName === 'Addition' && worksheet[cellAddress].v) {
-          if (!worksheet[cellAddress].s.font) {
-            worksheet[cellAddress].s.font = {}
-          }
-          worksheet[cellAddress].s.font.color = { rgb: '9333EA' }
-        }
-
-        // Is Marked column - Yes in red, No in green
-        if (colName === 'Is Marked') {
-          if (!worksheet[cellAddress].s.font) {
-            worksheet[cellAddress].s.font = {}
-          }
-          if (worksheet[cellAddress].v === 'Yes') {
-            worksheet[cellAddress].s.font.color = { rgb: 'DC2626' }
-            worksheet[cellAddress].s.font.bold = true
-          } else {
-            worksheet[cellAddress].s.font.color = { rgb: '16A34A' }
-          }
-        }
-      }
+  const headerRow = worksheet.getRow(3)
+  headerRow.height = 25
+  headers.forEach((header, idx) => {
+    const cell = headerRow.getCell(idx + 1)
+    cell.value = header
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4A5568' }
     }
-  }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
 
-  // Set column widths (matching new column order)
-  worksheet['!cols'] = [
-    { wch: 10 },  // Paper ID
-    { wch: 20 },  // Original Paper ID
-    { wch: 20 },  // Created
-    { wch: 20 },  // Last Modified
-    { wch: 50 },  // Paper Title
-    { wch: 80 },  // Abstract
-    { wch: 25 },  // Primary Contact Author Name
-    { wch: 35 },  // Primary Contact Author Email
-    { wch: 60 },  // Authors (with organizations and markers)
-    { wch: 40 },  // Author Names
-    { wch: 50 },  // Author Emails
-    { wch: 20 },  // Track Name
-    { wch: 25 },  // Primary Subject Area
-    { wch: 30 },  // Secondary Subject Areas
-    { wch: 20 },  // Conflicts
-    { wch: 15 },  // Assigned
-    { wch: 15 },  // Completed
-    { wch: 20 },  // % Completed
-    { wch: 15 },  // Bids
-    { wch: 30 },  // Discussion
-    { wch: 15 },  // Status
-    { wch: 30 },  // Requested For Author Feedback
-    { wch: 30 },  // Author Feedback Submitted?
-    { wch: 30 },  // Requested For Camera Ready
-    { wch: 30 },  // Camera Ready Submitted?
-    { wch: 30 },  // Requested For Presentation
-    { wch: 50 },  // Files
-    { wch: 20 },  // Number of Files
-    { wch: 50 },  // Supplementary Files
-    { wch: 30 },  // Number of Supplementary Files
-    { wch: 40 },  // Reviewers
-    { wch: 50 },  // Reviewer Emails
-    { wch: 40 },  // MetaReviewers
-    { wch: 50 },  // MetaReviewer Emails
-    { wch: 40 },  // SeniorMetaReviewers
-    { wch: 50 },  // SeniorMetaReviewerEmails
-    { wch: 60 },  // Chair Note (Reject reason)
-    { wch: 25 },  // [Review] Min (Overall Rating)
-    { wch: 25 },  // [Review] Max (Overall Rating)
-    { wch: 25 },  // [Review] Avg (Overall Rating)
-    { wch: 30 },  // [Review] Spread (Overall Rating)
-    { wch: 40 },  // Organizations
-    { wch: 30 },  // Corresponding Authors
-    { wch: 12 },  // Is Marked
-    { wch: 80 },  // Note
-    { wch: 40 },  // Addition
+  // Merge first row cells (span info across all columns)
+  worksheet.mergeCells(1, 1, 1, headers.length)
+
+  // Set column widths
+  const columnWidths = [
+    10,  // Paper ID
+    20,  // Original Paper ID
+    20,  // Created
+    20,  // Last Modified
+    50,  // Paper Title
+    80,  // Abstract
+    25,  // Primary Contact Author Name
+    35,  // Primary Contact Author Email
+    60,  // Authors
+    40,  // Author Names
+    50,  // Author Emails
+    20,  // Track Name
+    25,  // Primary Subject Area
+    30,  // Secondary Subject Areas
+    20,  // Conflicts
+    15,  // Assigned
+    15,  // Completed
+    20,  // % Completed
+    15,  // Bids
+    30,  // Discussion
+    15,  // Status
+    30,  // Requested For Author Feedback
+    30,  // Author Feedback Submitted?
+    30,  // Requested For Camera Ready
+    30,  // Camera Ready Submitted?
+    30,  // Requested For Presentation
+    50,  // Files
+    20,  // Number of Files
+    50,  // Supplementary Files
+    30,  // Number of Supplementary Files
+    40,  // Reviewers
+    50,  // Reviewer Emails
+    40,  // MetaReviewers
+    50,  // MetaReviewer Emails
+    40,  // SeniorMetaReviewers
+    50,  // SeniorMetaReviewerEmails
+    60,  // Chair Note
+    25,  // [Review] Min
+    25,  // [Review] Max
+    25,  // [Review] Avg
+    30,  // [Review] Spread
+    40,  // Organizations
+    30,  // Corresponding Authors
+    12,  // Is Marked
+    80,  // Note
+    40,  // Addition
   ]
 
-  // Calculate row heights dynamically based on content
-  const calculateRowHeight = (rowIndex: number): number => {
-    if (rowIndex === 0) return 30 // First row info
-    if (rowIndex === 1) return 10 // Second row empty
-    if (rowIndex === 2) return 25 // Third row headers
+  columnWidths.forEach((width, idx) => {
+    worksheet.getColumn(idx + 1).width = width
+  })
 
-    // For data rows, calculate based on content
+  // Add data rows
+  papers.forEach((paper, paperIdx) => {
+    const rowNum = paperIdx + 4 // Start from row 4
+    const row = worksheet.getRow(rowNum)
+
+    // Check if has warning
+    const isMarked = paper.hasWarning
+
+    // Generate note: list all warning authors and reasons
+    let note = ''
+    if (paper.warningAuthors && paper.warningAuthors.length > 0) {
+      note = paper.warningAuthors
+        .map(wa => `${wa.name} (${wa.email}): Over quota - ${wa.paperCount} papers, this is paper #${wa.paperRank}`)
+        .join('; ')
+    }
+
+    // Check if has linked authors - build detailed addition info
+    const linkedAuthorEmails = paper.authorEmails.filter(email => emailToMergeGroup.has(email))
+    let addition = ''
+    if (linkedAuthorEmails.length > 0) {
+      const linkedAuthorsInfo = linkedAuthorEmails.map(email => {
+        const merge = emailToMergeGroup.get(email)!
+        const allEmails = [merge.primaryEmail, ...merge.mergedEmails]
+        const authorName = paper.authorNames[paper.authorEmails.indexOf(email)]
+
+        // Find all papers containing any of these linked emails
+        const relatedPaperIds = new Set<number>()
+        papers.forEach(p => {
+          const hasLinkedAuthor = p.authorEmails.some(e => allEmails.includes(e))
+          if (hasLinkedAuthor) {
+            relatedPaperIds.add(p.paperId)
+          }
+        })
+
+        // Convert to sorted array and format
+        const paperIdList = Array.from(relatedPaperIds).sort((a, b) => a - b).join(', ')
+        return `【(${paperIdList}) ${authorName}】`
+      })
+      addition = linkedAuthorsInfo.join('; ')
+    }
+
+    // Build corresponding authors
+    const correspondingAuthors = paper.authorNames
+      .filter((_, idx) => paper.correspondingAuthorIndices.includes(idx))
+      .join('; ')
+
+    // Prepare row data
+    const rowData: any[] = [
+      paper.paperId,
+      paper.originalPaperId,
+      paper.created,
+      paper.lastModified,
+      paper.title,
+      paper.abstract,
+      paper.primaryContactAuthorName,
+      paper.primaryContactAuthorEmail,
+      '', // Authors - will be set with rich text
+      paper.authorNames.join('; '),
+      paper.authorEmails.join('; '),
+      paper.trackName,
+      paper.primarySubjectArea,
+      paper.secondarySubjectAreas.join('; '),
+      paper.conflicts,
+      paper.assigned,
+      paper.completed,
+      paper.percentCompleted,
+      paper.bids,
+      paper.discussion,
+      paper.status,
+      paper.requestedForAuthorFeedback,
+      paper.authorFeedbackSubmitted,
+      paper.requestedForCameraReady,
+      paper.cameraReadySubmitted,
+      paper.requestedForPresentation,
+      paper.files,
+      paper.numberOfFiles,
+      paper.supplementaryFiles,
+      paper.numberOfSupplementaryFiles,
+      paper.reviewers,
+      paper.reviewerEmails,
+      paper.metaReviewers,
+      paper.metaReviewerEmails,
+      paper.seniorMetaReviewers,
+      paper.seniorMetaReviewerEmails,
+      paper.chairNote,
+      paper.reviewMinOverallRating,
+      paper.reviewMaxOverallRating,
+      paper.reviewAvgOverallRating,
+      paper.reviewSpreadOverallRating,
+      paper.authorOrganizations.join('; '),
+      correspondingAuthors,
+      isMarked ? 'Yes' : 'No',
+      note,
+      addition,
+    ]
+
+    // Set row data
+    // ExcelJS: row.values[0] corresponds to getCell(1), row.values[1] to getCell(2), etc.
+    row.values = rowData
+
+    // Build warning author emails set and map for quick lookup
+    const warningAuthorMap = new Map<string, { paperRank: number }>()
+    if (paper.warningAuthors) {
+      paper.warningAuthors.forEach(wa => {
+        warningAuthorMap.set(wa.email, { paperRank: wa.paperRank })
+      })
+    }
+
+    // Build linked author emails set (authors in merge groups)
+    const linkedAuthorEmailsSet = new Set(linkedAuthorEmails)
+
+    // Special handling for Authors column (column 9) - use rich text
+    const authorsCell = row.getCell(9)
+    const richTextParts: ExcelJS.RichText[] = []
+
+    paper.authorNames.forEach((name, idx) => {
+      const isCorresponding = paper.correspondingAuthorIndices.includes(idx)
+      const organization = paper.authorOrganizations[idx] || ''
+      const authorWithOrg = organization ? `${name} (${organization})` : name
+      const displayText = isCorresponding ? authorWithOrg + '*' : authorWithOrg
+      const email = paper.authorEmails[idx]
+
+      if (idx > 0) {
+        richTextParts.push({ text: '; ' })
+      }
+
+      const warningInfo = warningAuthorMap.get(email)
+      if (warningInfo && warningInfo.paperRank > 2) {
+        // Warning author with paperRank > 2 - red bold text (highest priority)
+        richTextParts.push({
+          text: displayText,
+          font: { color: { argb: 'FFDC2626' }, bold: true }
+        })
+      } else if (linkedAuthorEmailsSet.has(email) && !warningInfo) {
+        // Linked author (not warning or paperRank <= 2) - purple text
+        richTextParts.push({
+          text: displayText,
+          font: { color: { argb: 'FF9333EA' } }
+        })
+      } else {
+        // Normal author - default text
+        richTextParts.push({
+          text: displayText
+        })
+      }
+    })
+
+    authorsCell.value = {
+      richText: richTextParts
+    }
+
+    // Apply row styling
+    if (isMarked) {
+      // Warning records use rose pink background
+      row.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFE4E8' }
+        }
+        cell.alignment = { vertical: 'top', wrapText: true }
+      })
+    } else {
+      row.eachCell((cell) => {
+        cell.alignment = { vertical: 'top', wrapText: true }
+      })
+    }
+
+    // Special column styling
+    headers.forEach((header, colIdx) => {
+      const cell = row.getCell(colIdx + 1)
+
+      if (header === 'Note' && note) {
+        // Note column - orange text
+        cell.font = { color: { argb: 'FFEA580C' } }
+      } else if (header === 'Addition' && addition) {
+        // Addition column - purple text
+        cell.font = { color: { argb: 'FF9333EA' } }
+      } else if (header === 'Is Marked') {
+        // Is Marked column - Yes in red bold, No in green
+        if (cell.value === 'Yes') {
+          cell.font = { color: { argb: 'FFDC2626' }, bold: true }
+        } else {
+          cell.font = { color: { argb: 'FF16A34A' } }
+        }
+      }
+    })
+
+    // Calculate and set row height dynamically
     let maxLines = 1
-    for (let C = 0; C < headers.length; ++C) {
-      const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: C })
-      const cell = worksheet[cellAddress]
-      if (!cell || !cell.v) continue
+    headers.forEach((header, colIdx) => {
+      const cell = row.getCell(colIdx + 1)
+      const content = cell.value ? String(cell.value) : ''
+      const colWidth = columnWidths[colIdx] || 10
 
-      const content = String(cell.v)
-      const colWidth = worksheet['!cols'][C]?.wch || 10
-
-      // Account for explicit line breaks first
       const explicitLines = (content.match(/\n/g) || []).length + 1
-
-      // Estimate lines needed based on content length and column width
-      // Excel column width unit is roughly 1 character width
-      // Use conservative estimate: 0.9 to account for character width variations
       const charsPerLine = Math.max(1, Math.floor(colWidth * 0.9))
       const estimatedLines = Math.ceil(content.length / charsPerLine)
-
-      // Take the maximum of explicit lines and estimated lines
       const totalLines = Math.max(explicitLines, estimatedLines)
 
       maxLines = Math.max(maxLines, totalLines)
-    }
+    })
 
-    // Calculate pixel height: ~15px per line + 6px padding
-    // Minimum height: 20px, Maximum height: 300px
     const calculatedHeight = maxLines * 15 + 6
-    return Math.max(20, Math.min(calculatedHeight, 300))
-  }
-
-  worksheet['!rows'] = []
-  for (let R = 0; R <= range.e.r; ++R) {
-    worksheet['!rows'][R] = { hpx: calculateRowHeight(R) }
-  }
-
-  // Merge first row cells (span info across all columns)
-  worksheet['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: headers.length - 1 } }
-  ]
-
-  // Create workbook
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Papers')
-
-  // Export as ArrayBuffer
-  const excelBuffer = XLSX.write(workbook, {
-    bookType: 'xlsx',
-    type: 'array',
+    row.height = Math.max(20, Math.min(calculatedHeight, 300))
   })
 
-  return excelBuffer as ArrayBuffer
+  // Export as ArrayBuffer
+  const buffer = await workbook.xlsx.writeBuffer()
+  return buffer as ArrayBuffer
+}
+
+/**
+ * Export Authors to Excel with marking and styling
+ * @param authors - Author list
+ * @param authorMerges - Author merge records
+ * @param papers - All papers (for getting organization info and paperRank)
+ * @param datasetLabel - Dataset label
+ * @param filterInfo - Filter information
+ * @returns ArrayBuffer of Excel file
+ */
+export const exportAuthorsToExcel = async (
+  authors: AuthorStats[],
+  authorMerges: AuthorMerge[],
+  papers: Paper[],
+  datasetLabel: string = 'All Datasets',
+  filterInfo: string = 'No filters applied'
+): Promise<ArrayBuffer> => {
+  // Create email to merge group mapping
+  const emailToMergeGroup = new Map<string, AuthorMerge>()
+  authorMerges.forEach(merge => {
+    emailToMergeGroup.set(merge.primaryEmail, merge)
+    merge.mergedEmails.forEach((email: string) => {
+      emailToMergeGroup.set(email, merge)
+    })
+  })
+
+  // Get author organization from papers
+  const getAuthorOrganization = (email: string): string => {
+    for (const paper of papers) {
+      const idx = paper.authorEmails.indexOf(email)
+      if (idx !== -1 && paper.authorOrganizations[idx]) {
+        return paper.authorOrganizations[idx]
+      }
+    }
+    return ''
+  }
+
+  // Create workbook and worksheet
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Authors')
+
+  // First row: Dataset label and filter conditions
+  const infoText = `Dataset: ${datasetLabel} | Filters: ${filterInfo}`
+  worksheet.getRow(1).height = 30
+  const infoCell = worksheet.getCell('A1')
+  infoCell.value = infoText
+  infoCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 }
+  infoCell.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF3B82F6' }
+  }
+  infoCell.alignment = { horizontal: 'left', vertical: 'middle' }
+
+  // Second row: Empty
+  worksheet.getRow(2).height = 10
+
+  // Third row: Column headers
+  const headers = [
+    'Name', 'Email', 'Paper Count', 'Paper IDs', 'Organization',
+    'Has Email Conflict', 'Is Marked', 'Note', 'Addition'
+  ]
+
+  const headerRow = worksheet.getRow(3)
+  headerRow.height = 25
+  headers.forEach((header, idx) => {
+    const cell = headerRow.getCell(idx + 1)
+    cell.value = header
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF4A5568' }
+    }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  })
+
+  // Merge first row cells
+  worksheet.mergeCells(1, 1, 1, headers.length)
+
+  // Set column widths
+  const columnWidths = [
+    25,  // Name
+    35,  // Email
+    12,  // Paper Count
+    30,  // Paper IDs
+    40,  // Organization
+    20,  // Has Email Conflict
+    12,  // Is Marked
+    60,  // Note
+    50,  // Addition
+  ]
+
+  columnWidths.forEach((width, idx) => {
+    worksheet.getColumn(idx + 1).width = width
+  })
+
+  // Add data rows
+  authors.forEach((author, authorIdx) => {
+    const rowNum = authorIdx + 4 // Start from row 4
+    const row = worksheet.getRow(rowNum)
+
+    // Check if has warning
+    const isMarked = author.hasWarning || emailToMergeGroup.has(author.email)
+
+    // Generate note: warning info
+    let note = ''
+    if (author.hasWarning) {
+      note = `Over quota - ${author.paperCount} papers (limit: 2)`
+    }
+
+    // Generate addition: linked info
+    let addition = ''
+    if (emailToMergeGroup.has(author.email)) {
+      const merge = emailToMergeGroup.get(author.email)!
+      const allEmails = [merge.primaryEmail, ...merge.mergedEmails]
+
+      // Find all papers containing any of these linked emails
+      const relatedPaperIds = new Set<number>()
+      papers.forEach(p => {
+        const hasLinkedAuthor = p.authorEmails.some(e => allEmails.includes(e))
+        if (hasLinkedAuthor) {
+          relatedPaperIds.add(p.paperId)
+        }
+      })
+
+      // Convert to sorted array and format
+      const paperIdList = Array.from(relatedPaperIds).sort((a, b) => a - b).join(', ')
+      addition = `【(${paperIdList}) ${author.name}】`
+    }
+
+    const organization = getAuthorOrganization(author.email)
+
+    // Prepare row data
+    const rowData: any[] = [
+      author.name,
+      author.email,
+      author.paperCount,
+      '', // Paper IDs - will be set with rich text
+      organization,
+      author.hasEmailConflict ? 'Yes' : 'No',
+      isMarked ? 'Yes' : 'No',
+      note,
+      addition,
+    ]
+
+    // Set row data
+    // ExcelJS: row.values[0] corresponds to getCell(1), row.values[1] to getCell(2), etc.
+    row.values = rowData
+
+    // Special handling for Paper IDs column (column 4) - use rich text
+    const paperIdsCell = row.getCell(4)
+
+    if (author.hasWarning) {
+      // Build rich text for paper IDs - only mark those with paperRank > 2 as red
+      const richTextParts: ExcelJS.RichText[] = []
+
+      // For each paper ID, find its paperRank
+      author.paperIds.forEach((paperId, idx) => {
+        if (idx > 0) {
+          richTextParts.push({ text: ', ' })
+        }
+
+        // Find the paper
+        const paper = papers.find(p => p.paperId === paperId)
+        let paperRank = 0
+
+        if (paper && paper.warningAuthors) {
+          const warningInfo = paper.warningAuthors.find(wa => wa.email === author.email)
+          if (warningInfo) {
+            paperRank = warningInfo.paperRank
+          }
+        }
+
+        // Only mark red if paperRank > 2
+        if (paperRank > 2) {
+          richTextParts.push({
+            text: String(paperId),
+            font: { color: { argb: 'FFDC2626' }, bold: true }
+          })
+        } else {
+          richTextParts.push({
+            text: String(paperId)
+          })
+        }
+      })
+
+      paperIdsCell.value = {
+        richText: richTextParts
+      }
+    } else {
+      // No warning - plain text
+      paperIdsCell.value = author.paperIds.join(', ')
+    }
+
+    // Apply row styling
+    if (author.hasWarning) {
+      // Warning records use rose pink background
+      row.eachCell((cell) => {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFE4E8' }
+        }
+        cell.alignment = { vertical: 'top', wrapText: true }
+      })
+    } else {
+      row.eachCell((cell) => {
+        cell.alignment = { vertical: 'top', wrapText: true }
+      })
+    }
+
+    // Special column styling
+    headers.forEach((header, colIdx) => {
+      const cell = row.getCell(colIdx + 1)
+
+      if (header === 'Note' && note) {
+        // Note column - orange text
+        cell.font = { color: { argb: 'FFEA580C' } }
+      } else if (header === 'Addition' && addition) {
+        // Addition column - purple text
+        cell.font = { color: { argb: 'FF9333EA' } }
+      } else if (header === 'Is Marked') {
+        // Is Marked column - Yes in red bold, No in green
+        if (cell.value === 'Yes') {
+          cell.font = { color: { argb: 'FFDC2626' }, bold: true }
+        } else {
+          cell.font = { color: { argb: 'FF16A34A' } }
+        }
+      } else if (header === 'Has Email Conflict') {
+        // Has Email Conflict column - Yes in red bold, No in green
+        if (cell.value === 'Yes') {
+          cell.font = { color: { argb: 'FFDC2626' }, bold: true }
+        } else {
+          cell.font = { color: { argb: 'FF16A34A' } }
+        }
+      }
+    })
+
+    // Calculate and set row height dynamically
+    let maxLines = 1
+    headers.forEach((header, colIdx) => {
+      const cell = row.getCell(colIdx + 1)
+      const content = cell.value ? String(cell.value) : ''
+      const colWidth = columnWidths[colIdx] || 10
+
+      const explicitLines = (content.match(/\n/g) || []).length + 1
+      const charsPerLine = Math.max(1, Math.floor(colWidth * 0.9))
+      const estimatedLines = Math.ceil(content.length / charsPerLine)
+      const totalLines = Math.max(explicitLines, estimatedLines)
+
+      maxLines = Math.max(maxLines, totalLines)
+    })
+
+    const calculatedHeight = maxLines * 15 + 6
+    row.height = Math.max(20, Math.min(calculatedHeight, 200))
+  })
+
+  // Export as ArrayBuffer
+  const buffer = await workbook.xlsx.writeBuffer()
+  return buffer as ArrayBuffer
 }
