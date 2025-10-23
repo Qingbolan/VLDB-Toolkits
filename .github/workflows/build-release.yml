@@ -91,9 +91,10 @@ jobs:
       # Package macOS builds
       - name: Package macOS build
         if: matrix.platform == 'macos'
-        working-directory: ./app/src-tauri/target/${{ matrix.target }}/release/bundle/macos
         run: |
+          cd app/src-tauri/target/${{ matrix.target }}/release/bundle/macos
           tar -czf ${{ matrix.asset_name }} VLDB-Toolkits.app
+          mv ${{ matrix.asset_name }} ${{ github.workspace }}/
 
       # Find and rename Windows build
       - name: Package Windows build
@@ -101,13 +102,13 @@ jobs:
         shell: pwsh
         run: |
           $msiPath = Get-ChildItem -Path "app/src-tauri/target/${{ matrix.target }}/release/bundle/msi" -Filter "*.msi" | Select-Object -First 1
-          Copy-Item $msiPath.FullName -Destination "${{ matrix.asset_name }}"
+          Copy-Item $msiPath.FullName -Destination "${{ github.workspace }}/${{ matrix.asset_name }}"
 
       # Find and rename Linux build
       - name: Package Linux build
         if: matrix.platform == 'linux'
         run: |
-          find app/src-tauri/target/${{ matrix.target }}/release/bundle/appimage -name "*.AppImage" -exec cp {} ${{ matrix.asset_name }} \;
+          find app/src-tauri/target/${{ matrix.target }}/release/bundle/appimage -name "*.AppImage" -exec cp {} ${{ github.workspace }}/${{ matrix.asset_name }} \;
 
       # Upload artifacts
       - name: Upload build artifact
