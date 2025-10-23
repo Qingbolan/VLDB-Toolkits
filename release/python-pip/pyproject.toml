@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vldb-toolkits"
+version = "0.1.0"
+description = "Paper Management Platform for VLDB - Python wrapper for desktop application"
+authors = [
+    {name = "Silan Hu", email = "silan.hu@u.nus.edu"}
+]
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+keywords = ["vldb", "paper-management", "academic", "research", "desktop-application"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Office/Business",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/Qingbolan/VLDB-Toolkits"
+Repository = "https://github.com/Qingbolan/VLDB-Toolkits"
+Issues = "https://github.com/Qingbolan/VLDB-Toolkits/issues"
+
+[project.scripts]
+vldb-toolkits = "vldb_toolkits.cli:main"
+
+[tool.setuptools]
+packages = ["vldb_toolkits"]
+
+[tool.setuptools.package-data]
+vldb_toolkits = ["py.typed"]

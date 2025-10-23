@@ -1,0 +1,55 @@
+{
+  "name": "vldb-toolkits",
+  "version": "0.1.0",
+  "description": "Paper Management Platform for VLDB - Node.js CLI wrapper for desktop application",
+  "main": "lib/cli.js",
+  "bin": {
+    "vldb-toolkits": "lib/cli.js"
+  },
+  "scripts": {
+    "test": "node test/test.js",
+    "prepublishOnly": "node lib/cli.js --version"
+  },
+  "keywords": [
+    "vldb",
+    "paper-management",
+    "academic",
+    "research",
+    "desktop-application",
+    "tauri"
+  ],
+  "author": {
+    "name": "Silan Hu",
+    "email": "silan.hu@u.nus.edu"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Qingbolan/VLDB-Toolkits.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Qingbolan/VLDB-Toolkits/issues"
+  },
+  "homepage": "https://github.com/Qingbolan/VLDB-Toolkits#readme",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "tar": "^6.2.0"
+  },
+  "devDependencies": {},
+  "files": [
+    "lib/",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}
