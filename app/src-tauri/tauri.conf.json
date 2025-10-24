@@ -66,8 +66,7 @@
         "epoch": 0
       },
       "appimage": {
-        "bundleMediaFramework": false,
-        "files": {}
+        "bundleMediaFramework": false
       }
     },
     "macOS": {
