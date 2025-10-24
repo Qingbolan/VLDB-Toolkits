@@ -69,8 +69,8 @@ jobs:
           fi
 
       - name: Sync Tauri app version from tag
-        env:
-          VERSION_TAG: ${{ steps.get_version_build.outputs.VERSION }}
+        if: false
+        
         run: |
           node -e "
           const fs = require('fs');
@@ -96,6 +96,36 @@ jobs:
           console.log('Synced app versions to', version);
           "
       
+      - name: Sync Tauri app version from tag (safe)
+        shell: bash
+        env:
+          VERSION_TAG: ${{ steps.get_version_build.outputs.VERSION }}
+        run: |
+          cat > sync-version.js <<'JS'
+          const fs = require('fs');
+          const path = require('path');
+          const versionTag = process.env.VERSION_TAG || '';
+          const version = versionTag.startsWith('v') ? versionTag.slice(1) : versionTag;
+          if (!version) { console.error('Empty version'); process.exit(1); }
+          // Update app/package.json
+          const pkgPath = path.join('app', 'package.json');
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          pkg.version = version;
+          fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+          // Update app/src-tauri/tauri.conf.json
+          const tauriPath = path.join('app', 'src-tauri', 'tauri.conf.json');
+          const tauri = JSON.parse(fs.readFileSync(tauriPath, 'utf8'));
+          tauri.version = version;
+          fs.writeFileSync(tauriPath, JSON.stringify(tauri, null, 2) + '\n');
+          // Update app/src-tauri/Cargo.toml
+          const cargoPath = path.join('app', 'src-tauri', 'Cargo.toml');
+          let cargo = fs.readFileSync(cargoPath, 'utf8');
+          cargo = cargo.replace(/^version\s*=\s*\"[^\"]+\"/m, `version = \"${version}\"`);
+          fs.writeFileSync(cargoPath, cargo);
+          console.log('Synced app versions to', version);
+          JS
+          node sync-version.js
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
