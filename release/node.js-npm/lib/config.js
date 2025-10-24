@@ -5,8 +5,15 @@
 const path = require('path');
 const os = require('os');
 
-// Version
-const VERSION = '0.1.1';
+// Version (read from package.json to avoid drift)
+let VERSION = '0.0.0';
+try {
+  // When packaged, lib/ sits next to package.json
+  // eslint-disable-next-line import/no-dynamic-require, global-require
+  VERSION = require('../package.json').version || VERSION;
+} catch (_) {
+  // keep default
+}
 
 // GitHub repository
 const GITHUB_REPO = 'Qingbolan/VLDB-Toolkits'; // TODO: Update with your repo

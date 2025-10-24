@@ -1,6 +1,6 @@
 {
   "name": "vldb-toolkits",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Paper Management Platform for VLDB - Node.js CLI wrapper for desktop application",
   "main": "lib/cli.js",
   "bin": {
