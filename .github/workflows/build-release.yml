@@ -192,13 +192,30 @@ jobs:
           tar -czf ${{ matrix.asset_name }} VLDB-Toolkits.app
           mv ${{ matrix.asset_name }} ${{ github.workspace }}/
 
-      # Find and rename Windows build
+      # Package Windows builds (both MSI and NSIS)
       - name: Package Windows build
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          $msiPath = Get-ChildItem -Path "app/src-tauri/target/${{ matrix.target }}/release/bundle/msi" -Filter "*.msi" | Select-Object -First 1
-          Copy-Item $msiPath.FullName -Destination "${{ github.workspace }}/${{ matrix.asset_name }}"
+          # Create output directory
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}/windows-packages"
+
+          # Copy MSI if exists
+          $msiPath = Get-ChildItem -Path "app/src-tauri/target/${{ matrix.target }}/release/bundle/msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($msiPath) {
+            Copy-Item $msiPath.FullName -Destination "${{ github.workspace }}/windows-packages/VLDB-Toolkits_windows_x86_64.msi"
+            Write-Host "MSI copied: $($msiPath.Name)"
+          }
+
+          # Copy NSIS installer if exists
+          $nsisPath = Get-ChildItem -Path "app/src-tauri/target/${{ matrix.target }}/release/bundle/nsis" -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($nsisPath) {
+            Copy-Item $nsisPath.FullName -Destination "${{ github.workspace }}/windows-packages/VLDB-Toolkits_windows_x86_64_setup.exe"
+            Write-Host "NSIS installer copied: $($nsisPath.Name)"
+          }
+
+          # List all created packages
+          Get-ChildItem "${{ github.workspace }}/windows-packages"
 
       # Package Linux builds (AppImage, deb, rpm)
       - name: Package Linux builds
@@ -227,13 +244,22 @@ jobs:
           # List generated packages
           ls -lah ${{ github.workspace }}/linux-packages/
 
-      # Upload artifacts (macOS/Windows)
-      - name: Upload build artifact (macOS/Windows)
-        if: matrix.platform != 'linux'
+      # Upload artifacts (macOS)
+      - name: Upload build artifact (macOS)
+        if: matrix.platform == 'macos'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.asset_name }}
+          if-no-files-found: error
+
+      # Upload Windows artifacts (multiple formats)
+      - name: Upload Windows artifacts
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-packages
+          path: ${{ github.workspace }}/windows-packages/*
           if-no-files-found: error
 
       # Upload Linux artifacts (multiple formats)
@@ -286,8 +312,8 @@ jobs:
           generate_release_notes: true
           files: |
             ./artifacts/*/*.tar.gz
-            ./artifacts/*/*.msi
-            ./artifacts/*/*.nsis.exe
+            ./artifacts/windows-packages/*.msi
+            ./artifacts/windows-packages/*.exe
             ./artifacts/linux-packages/*.AppImage
             ./artifacts/linux-packages/*.deb
             ./artifacts/linux-packages/*.rpm
