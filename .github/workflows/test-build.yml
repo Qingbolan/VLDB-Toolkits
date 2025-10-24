@@ -140,14 +140,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Tauri app (Linux in container for older glibc)
+      - name: Build Tauri app (Linux)
         if: matrix.platform == 'linux'
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/work" \
-            -w /work/app \
-            ghcr.io/tauri-apps/tauri-action:latest \
-            bash -lc "npm ci && npm run tauri:build -- --target ${{ matrix.target }}"
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: ./app
+          tauriScript: build
+          args: --target ${{ matrix.target }}
 
       # Package macOS builds
       - name: Package macOS build

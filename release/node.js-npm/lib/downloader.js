@@ -219,6 +219,15 @@ function getBinaryPath() {
     if (discovered) return discovered;
   }
 
+  // Linux: if expected binary not found, fall back to AppImage in bin dir
+  if (platformKey.startsWith('linux_') && !fs.existsSync(expectedPath)) {
+    try {
+      const files = fs.readdirSync(BINARY_DIR);
+      const appImage = files.find(f => f.toLowerCase().endsWith('.appimage'));
+      if (appImage) return path.join(BINARY_DIR, appImage);
+    } catch (_) { /* ignore */ }
+  }
+
   return expectedPath;
 }
 
@@ -239,6 +248,14 @@ function isInstalled() {
     if (platformKey === 'win32_x64') {
       const discovered = findWindowsInstalledExe();
       return !!(discovered && fs.existsSync(discovered));
+    }
+    // Linux: check for any AppImage as a fallback
+    if (platformKey.startsWith('linux_')) {
+      try {
+        const files = fs.readdirSync(BINARY_DIR);
+        const appImage = files.find(f => f.toLowerCase().endsWith('.appimage'));
+        if (appImage && fs.existsSync(path.join(BINARY_DIR, appImage))) return true;
+      } catch (_) { /* ignore */ }
     }
     return false;
   } catch (_) {
