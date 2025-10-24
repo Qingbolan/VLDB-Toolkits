@@ -170,42 +170,86 @@ def download_with_progress(url: str, dest: Path):
         raise RuntimeError(f"Download failed: {e}")
 
 
+def _run_nsis_installer(installer_path: Path) -> None:
+    """Run NSIS installer.
+
+    The NSIS installer includes smart detection:
+    - If already installed, offers to launch or reinstall
+    - Handles WebView2 installation automatically
+    - Creates shortcuts and registry entries
+    """
+    if platform.system() != "Windows":
+        return
+
+    print("\n" + "="*60)
+    print("Running Windows installer...")
+    print("="*60)
+    print("\nNOTE: The installer will:")
+    print("  1. Check if VLDB-Toolkits is already installed")
+    print("  2. If installed, offer to launch it or reinstall")
+    print("  3. If not installed, proceed with installation")
+    print("\nPlease follow the installer prompts.")
+    print("="*60 + "\n")
+
+    try:
+        # Run installer interactively (user needs to see the dialogs)
+        os.system(f'"{installer_path}"')
+        print("\nInstaller completed.")
+    except Exception as e:
+        print(f"Warning: Installer execution encountered an issue: {e}")
+        print(f"You can run the installer manually at: {installer_path}")
+
+
 def extract_archive(archive_path: Path, extract_dir: Path):
-    """Extract downloaded archive"""
-    print(f"Extracting to: {extract_dir}")
+    """Extract downloaded archive or run installer"""
+    print(f"Processing: {extract_dir}")
 
     if archive_path.suffix == ".gz" and archive_path.stem.endswith(".tar"):
-        # tar.gz
+        # tar.gz (macOS bundles)
+        print("Extracting tar.gz archive...")
         with tarfile.open(archive_path, "r:gz") as tar:
             tar.extractall(extract_dir)
+        print("Extraction complete!")
     elif archive_path.suffix == ".zip":
+        # zip archives
+        print("Extracting zip archive...")
         with zipfile.ZipFile(archive_path, "r") as zip_ref:
             zip_ref.extractall(extract_dir)
-    elif archive_path.suffix in (".AppImage", ".exe"):
-        # Single executable: ensure it resides at extract_dir/filename
+        print("Extraction complete!")
+    elif archive_path.suffix == ".AppImage":
+        # Linux AppImage: single executable
         dest = extract_dir / archive_path.name
         try:
-            # If it's already at destination, skip
-            if archive_path.resolve() == dest.resolve():
-                pass
-            else:
+            if archive_path.resolve() != dest.resolve():
                 shutil.move(str(archive_path), dest)
-        except Exception:
-            # Best-effort; ignore if same file
-            pass
-    elif archive_path.suffix == ".msi":
-        # For Windows MSI, copy to extract_dir for reference/rehydration and install later
+            # Make executable
+            os.chmod(dest, 0o755)
+            print(f"AppImage ready: {dest}")
+        except Exception as e:
+            print(f"Warning: {e}")
+    elif archive_path.suffix == ".exe":
+        # Windows NSIS installer
+        # Keep the installer in BINARY_DIR for user to run
         dest = extract_dir / archive_path.name
         try:
             if archive_path.resolve() != dest.resolve():
                 shutil.copy(str(archive_path), dest)
         except Exception:
-            # If same file or resolve fails, ignore
             pass
+        # Run the NSIS installer
+        _run_nsis_installer(archive_path if archive_path.exists() else dest)
+    elif archive_path.suffix == ".msi":
+        # Windows MSI: copy and install
+        dest = extract_dir / archive_path.name
+        try:
+            if archive_path.resolve() != dest.resolve():
+                shutil.copy(str(archive_path), dest)
+        except Exception:
+            pass
+        print("Running MSI installer...")
+        _install_msi(archive_path if archive_path.exists() else dest)
     else:
         raise RuntimeError(f"Unsupported archive format: {archive_path.suffix}")
-
-    print("Extraction complete!")
 
 
 def _find_windows_installed_exe(product_name: str = "VLDB-Toolkits",
@@ -316,9 +360,14 @@ def _install_msi(msi_path: Path) -> None:
 
 
 def get_download_url() -> Tuple[str, str]:
-    """Get download URL from GitHub releases"""
+    """Get download URL from GitHub releases
+
+    For Windows, tries NSIS installer first, falls back to MSI if not found.
+    """
     platform_key = get_platform_key()
-    asset_name = PLATFORM_BINARIES[platform_key]["asset_name"]
+    config = PLATFORM_BINARIES[platform_key]
+    asset_name = config["asset_name"]
+    fallback_name = config.get("asset_name_fallback")
 
     print("Fetching latest release information...")
 
@@ -330,14 +379,22 @@ def get_download_url() -> Tuple[str, str]:
         with urllib.request.urlopen(req, timeout=30) as response:
             data = json.loads(response.read().decode())
 
-        # Find matching asset
+        # Find matching asset (try primary first, then fallback)
         for asset in data.get("assets", []):
             if asset["name"] == asset_name:
                 return asset["browser_download_url"], data["tag_name"]
 
+        # Try fallback for Windows (MSI if NSIS not found)
+        if fallback_name:
+            for asset in data.get("assets", []):
+                if asset["name"] == fallback_name:
+                    print(f"Note: Using fallback installer ({fallback_name})")
+                    return asset["browser_download_url"], data["tag_name"]
+
         raise RuntimeError(
             f"No matching binary found for platform: {platform_key}\n"
-            f"Looking for: {asset_name}"
+            f"Looking for: {asset_name}" +
+            (f" or {fallback_name}" if fallback_name else "")
         )
 
     except urllib.error.HTTPError as e:

@@ -1,0 +1,83 @@
+# Flatpak manifest for VLDB-Toolkits
+# Build with: flatpak-builder build-dir tech.silan.VLDB-Toolkits.yml --force-clean
+# Export: flatpak build-export repo build-dir
+# Bundle: flatpak build-bundle repo vldb-toolkits.flatpak tech.silan.VLDB-Toolkits
+
+app-id: tech.silan.VLDB-Toolkits
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node20
+
+command: vldb-toolkits
+
+finish-args:
+  # Display server access
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+
+  # GPU acceleration
+  - --device=dri
+
+  # Network access (for updates and data sync)
+  - --share=network
+
+  # Filesystem access
+  - --filesystem=home
+  - --filesystem=xdg-documents
+  - --filesystem=xdg-download
+
+  # Desktop integration
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=org.mpris.MediaPlayer2.vldb-toolkits
+
+  # System tray support
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.freedesktop.portal.FileChooser
+
+modules:
+  # Build the Tauri application
+  - name: vldb-toolkits
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
+      env:
+        CARGO_HOME: /run/build/vldb-toolkits/cargo
+        NPM_CONFIG_CACHE: /run/build/vldb-toolkits/npm-cache
+        XDG_CACHE_HOME: /run/build/vldb-toolkits/cache
+
+    build-commands:
+      # Install Node.js dependencies
+      - cd app && npm install --frozen-lockfile
+
+      # Build the application
+      - cd app && npm run tauri:build -- --bundles none
+
+      # Install the binary
+      - install -Dm755 app/src-tauri/target/release/vldb-toolkits /app/bin/vldb-toolkits
+
+      # Install desktop file
+      - install -Dm644 app/src-tauri/tech.silan.VLDB-Toolkits.desktop /app/share/applications/tech.silan.VLDB-Toolkits.desktop
+
+      # Install icons
+      - |
+        for size in 32 128 256; do
+          install -Dm644 app/src-tauri/icons/${size}x${size}.png \
+            /app/share/icons/hicolor/${size}x${size}/apps/tech.silan.VLDB-Toolkits.png
+        done
+
+      # Install appdata/metainfo
+      - install -Dm644 app/src-tauri/tech.silan.VLDB-Toolkits.metainfo.xml /app/share/metainfo/tech.silan.VLDB-Toolkits.metainfo.xml
+
+    sources:
+      - type: dir
+        path: ../../../
+        skip:
+          - .git
+          - app/node_modules
+          - app/dist
+          - app/src-tauri/target

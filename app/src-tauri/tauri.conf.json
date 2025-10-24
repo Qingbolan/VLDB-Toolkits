@@ -29,7 +29,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["appimage", "deb", "rpm", "dmg", "msi", "nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -42,9 +42,69 @@
     "category": "Productivity",
     "shortDescription": "Paper Management Platform for VLDB",
     "longDescription": "VLDB-Toolkits is a desktop application for managing academic papers and author information. Import Excel data, track paper metadata, manage author profiles, and export organized datasets.",
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0 | libwebkit2gtk-4.0-37",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1",
+          "librsvg2-2",
+          "libssl3 | libssl1.1"
+        ],
+        "section": "science",
+        "priority": "optional"
+      },
+      "rpm": {
+        "depends": [
+          "webkit2gtk4.1",
+          "gtk3",
+          "libappindicator-gtk3",
+          "librsvg2",
+          "openssl-libs"
+        ],
+        "release": "1",
+        "epoch": 0
+      },
+      "appimage": {
+        "bundleMediaFramework": false,
+        "files": {}
+      }
+    },
     "macOS": {
       "entitlements": "entitlements.plist",
-      "minimumSystemVersion": "10.13"
+      "minimumSystemVersion": "11.0",
+      "dmg": {
+        "background": null,
+        "window": {
+          "width": 600,
+          "height": 400
+        }
+      },
+      "frameworks": [],
+      "signingIdentity": null
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "language": ["en-US"],
+        "template": null
+      },
+      "nsis": {
+        "displayLanguageSelector": false,
+        "languages": ["English", "SimpChinese"],
+        "installerIcon": "icons/icon.ico",
+        "headerImage": null,
+        "sidebarImage": null,
+        "installMode": "perMachine",
+        "allowDowngrades": false,
+        "compression": "lzma",
+        "template": "installer.nsi"
+      }
     }
   }
 }

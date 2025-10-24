@@ -337,48 +337,91 @@ async function downloadFile(url, destPath) {
 }
 
 /**
- * Extract archive
+ * Run NSIS installer with user prompts
+ */
+function runNsisInstaller(installerPath) {
+  if (process.platform !== 'win32') return;
+
+  console.log('\n' + '='.repeat(60));
+  console.log('Running Windows installer...');
+  console.log('='.repeat(60));
+  console.log('\nNOTE: The installer will:');
+  console.log('  1. Check if VLDB-Toolkits is already installed');
+  console.log('  2. If installed, offer to launch it or reinstall');
+  console.log('  3. If not installed, proceed with installation');
+  console.log('\nPlease follow the installer prompts.');
+  console.log('='.repeat(60) + '\n');
+
+  try {
+    const { spawnSync } = require('child_process');
+    // Run installer interactively (user needs to see the dialogs)
+    const result = spawnSync(installerPath, [], { stdio: 'inherit' });
+    console.log('\nInstaller completed.');
+  } catch (e) {
+    console.warn(`Warning: Installer execution encountered an issue: ${e.message}`);
+    console.warn(`You can run the installer manually at: ${installerPath}`);
+  }
+}
+
+/**
+ * Extract archive or run installer
  */
 async function extractArchive(archivePath, extractDir) {
-  console.log(`Extracting to: ${extractDir}`);
+  console.log(`Processing: ${extractDir}`);
 
   const ext = path.extname(archivePath);
 
   if (ext === '.gz') {
-    // tar.gz
+    // tar.gz (macOS bundles)
+    console.log('Extracting tar.gz archive...');
     await tar.extract({
       file: archivePath,
       cwd: extractDir
     });
-  } else if (ext === '.AppImage' || ext === '.exe') {
-    // Single executable, just move it
+    console.log('Extraction complete!');
+  } else if (ext === '.AppImage') {
+    // Linux AppImage: single executable
     const destPath = path.join(extractDir, path.basename(archivePath));
-    fs.renameSync(archivePath, destPath);
-    // Make executable on Unix
-    if (process.platform !== 'win32') {
-      fs.chmodSync(destPath, 0o755);
+    if (path.resolve(archivePath) !== path.resolve(destPath)) {
+      fs.renameSync(archivePath, destPath);
     }
-  } else if (ext === '.msi') {
-    // Copy for reference and attempt to install
+    // Make executable
+    fs.chmodSync(destPath, 0o755);
+    console.log(`AppImage ready: ${destPath}`);
+  } else if (ext === '.exe') {
+    // Windows NSIS installer
+    // Keep the installer in BINARY_DIR for user to run
     const destPath = path.join(extractDir, path.basename(archivePath));
-    fs.copyFileSync(archivePath, destPath);
+    if (path.resolve(archivePath) !== path.resolve(destPath)) {
+      fs.copyFileSync(archivePath, destPath);
+    }
+    // Run the NSIS installer
+    runNsisInstaller(fs.existsSync(archivePath) ? archivePath : destPath);
+  } else if (ext === '.msi') {
+    // Windows MSI: copy and install
+    const destPath = path.join(extractDir, path.basename(archivePath));
+    if (path.resolve(archivePath) !== path.resolve(destPath)) {
+      fs.copyFileSync(archivePath, destPath);
+    }
+    console.log('Running MSI installer...');
     try {
-      installMsi(archivePath);
+      installMsi(fs.existsSync(archivePath) ? archivePath : destPath);
     } catch (_) {}
   } else {
     throw new Error(`Unsupported archive format: ${ext}`);
   }
-
-  console.log('Extraction complete!');
 }
 
 /**
  * Get download URL from GitHub releases
+ * For Windows, tries NSIS installer first, falls back to MSI if not found.
  */
 async function getDownloadUrl() {
   return new Promise((resolve, reject) => {
     const platformKey = getPlatformKey();
-    const assetName = PLATFORM_BINARIES[platformKey].assetName;
+    const config = PLATFORM_BINARIES[platformKey];
+    const assetName = config.assetName;
+    const fallbackName = config.assetNameFallback;
 
     console.log('Fetching latest release information...');
 
@@ -411,13 +454,22 @@ async function getDownloadUrl() {
             return;
           }
 
-          // Find matching asset
-          const asset = release.assets?.find(a => a.name === assetName);
+          // Find matching asset (try primary first, then fallback)
+          let asset = release.assets?.find(a => a.name === assetName);
+
+          // Try fallback for Windows (MSI if NSIS not found)
+          if (!asset && fallbackName) {
+            asset = release.assets?.find(a => a.name === fallbackName);
+            if (asset) {
+              console.log(`Note: Using fallback installer (${fallbackName})`);
+            }
+          }
 
           if (!asset) {
             reject(new Error(
               `No matching binary found for platform: ${platformKey}\n` +
-              `Looking for: ${assetName}`
+              `Looking for: ${assetName}` +
+              (fallbackName ? ` or ${fallbackName}` : '')
             ));
             return;
           }

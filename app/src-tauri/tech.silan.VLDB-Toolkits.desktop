@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=VLDB-Toolkits
+GenericName=Paper Management Platform
+Comment=Academic paper and author information management tool
+Categories=Science;Education;Office;Database;
+Keywords=paper;research;academic;vldb;database;management;
+Exec=vldb-toolkits %U
+Icon=tech.silan.VLDB-Toolkits
+Terminal=false
+StartupNotify=true
+StartupWMClass=VLDB-Toolkits
+MimeType=application/vnd.ms-excel;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;
