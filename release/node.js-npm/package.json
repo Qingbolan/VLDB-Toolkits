@@ -4,7 +4,8 @@
   "description": "Paper Management Platform for VLDB - Node.js CLI wrapper for desktop application",
   "main": "lib/cli.js",
   "bin": {
-    "vldb-toolkits": "lib/cli.js"
+    "vldb-toolkits": "lib/cli.js",
+    "vldb_toolkits": "lib/cli.js"
   },
   "scripts": {
     "test": "node test/test.js",
