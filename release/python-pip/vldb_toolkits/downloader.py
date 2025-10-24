@@ -107,6 +107,11 @@ def get_binary_path() -> Path:
         return expected_path
 
     # Non-bundle platforms
+    # On Windows with MSI installers, attempt to discover installed location
+    if platform_key == "windows_x86_64":
+        discovered_win = _find_windows_installed_exe()
+        if discovered_win is not None:
+            return discovered_win
     return expected_path
 
 
@@ -125,6 +130,10 @@ def is_installed() -> bool:
         if PLATFORM_BINARIES[platform_key]["is_bundle"]:
             discovered = _find_macos_app_binary(BINARY_DIR)
             return discovered is not None and discovered.exists()
+        # On Windows, consider MSI discovery
+        if platform_key == "windows_x86_64":
+            exe = _find_windows_installed_exe()
+            return exe is not None and exe.exists()
 
         return False
     except Exception:
@@ -176,14 +185,119 @@ def extract_archive(archive_path: Path, extract_dir: Path):
         # Single executable, just move it
         shutil.move(str(archive_path), extract_dir / archive_path.name)
     elif archive_path.suffix == ".msi":
-        # For Windows MSI, we need to extract it or run installer
-        # For simplicity, we'll note that MSI handling is complex
-        print("Note: MSI installer detected. Manual installation may be required.")
+        # For Windows MSI, copy to extract_dir for reference/rehydration and install later
         shutil.copy(str(archive_path), extract_dir / archive_path.name)
     else:
         raise RuntimeError(f"Unsupported archive format: {archive_path.suffix}")
 
     print("Extraction complete!")
+
+
+def _find_windows_installed_exe(product_name: str = "VLDB-Toolkits",
+                                 exe_name: str = "VLDB-Toolkits.exe") -> Optional[Path]:
+    """Try to discover installed Windows executable location.
+
+    Looks into registry uninstall keys and common install locations.
+    """
+    if platform.system() != "Windows":
+        return None
+
+    try:
+        import winreg  # type: ignore
+
+        def _scan_hive(root):
+            subkeys = [
+                r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+            ]
+            for sub in subkeys:
+                try:
+                    with winreg.OpenKey(root, sub) as hkey:
+                        for i in range(0, winreg.QueryInfoKey(hkey)[0]):
+                            skn = winreg.EnumKey(hkey, i)
+                            with winreg.OpenKey(hkey, skn) as sk:
+                                try:
+                                    name, _ = winreg.QueryValueEx(sk, "DisplayName")
+                                except Exception:
+                                    name = ""
+                                if not name or product_name.lower() not in name.lower():
+                                    continue
+                                # Prefer InstallLocation or DisplayIcon
+                                path_val = None
+                                for valname in ("InstallLocation", "DisplayIcon"):
+                                    try:
+                                        v, _ = winreg.QueryValueEx(sk, valname)
+                                        if v:
+                                            path_val = v
+                                            break
+                                    except Exception:
+                                        pass
+                                if path_val:
+                                    # DisplayIcon may contain trailing ",0"
+                                    path_text = str(path_val).split(",")[0]
+                                    p = Path(path_text)
+                                    if p.is_file():
+                                        return p
+                                    if p.is_dir():
+                                        cand = p / exe_name
+                                        if cand.exists():
+                                            return cand
+                except Exception:
+                    continue
+            return None
+
+        for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            found = _scan_hive(hive)
+            if found:
+                return found
+    except Exception:
+        # Registry probing failed; continue to filesystem guesses
+        pass
+
+    # Fallback: common directories
+    candidates = []
+    for env_var in ("ProgramFiles", "ProgramFiles(x86)"):
+        base = os.environ.get(env_var)
+        if base:
+            candidates.append(Path(base) / product_name / exe_name)
+    local_app = os.environ.get("LOCALAPPDATA")
+    if local_app:
+        candidates.append(Path(local_app) / "Programs" / product_name / exe_name)
+
+    for cand in candidates:
+        if cand.exists():
+            return cand
+
+    return None
+
+
+def _install_msi(msi_path: Path) -> None:
+    """Install an MSI package using msiexec with user-level fallback.
+
+    Attempts silent install first; falls back to passive UI if needed.
+    """
+    if platform.system() != "Windows":
+        return
+    try:
+        msiexec = "msiexec"
+        log_path = BINARY_DIR / "msi-install.log"
+        # Prefer silent user-level install; avoid reboot
+        cmds = [
+            [msiexec, "/i", str(msi_path), "/qn", "/norestart", f"/L*V\"{log_path}\"", "ALLUSERS=2", "MSIINSTALLPERUSER=1"],
+            [msiexec, "/i", str(msi_path), "/passive", "/norestart", f"/L*V\"{log_path}\"", "ALLUSERS=2", "MSIINSTALLPERUSER=1"],
+            [msiexec, "/i", str(msi_path)],  # last resort interactive
+        ]
+        for cmd in cmds:
+            try:
+                print(f"Running: {' '.join(cmd)}")
+                rc = os.system(" ".join(cmd))
+                if rc == 0:
+                    return
+            except Exception:
+                continue
+        print("Warning: MSI installation did not complete successfully. You may need to install manually.")
+    except Exception as e:
+        print(f"Warning: Failed to run msiexec: {e}")
 
 
 def get_download_url() -> Tuple[str, str]:
@@ -255,6 +369,14 @@ def download_and_install():
     if PLATFORM_BINARIES[platform_key]["is_bundle"] or download_path.suffix in (".gz", ".zip"):
         extract_archive(download_path, BINARY_DIR)
         download_path.unlink()  # Remove archive after extraction
+    elif download_path.suffix == ".msi":
+        # Keep MSI in place and attempt automatic installation
+        extract_archive(download_path, BINARY_DIR)
+        try:
+            _install_msi(download_path)
+        finally:
+            # Keep MSI file for troubleshooting; do not delete
+            pass
 
     # Make executable on Unix-like systems
     if platform.system() != "Windows":

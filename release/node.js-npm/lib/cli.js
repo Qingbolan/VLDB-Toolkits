@@ -36,6 +36,60 @@ Examples:
   `);
 }
 
+function linuxRuntimeCheck() {
+  try {
+    const { execSync } = require('child_process');
+    const fs = require('fs');
+    function hasLib(name) {
+      try {
+        const out = execSync('ldconfig -p', { encoding: 'utf8' });
+        return out.includes(name);
+      } catch {
+        return false;
+      }
+    }
+    const missing = [];
+    const hasWebkit = hasLib('libwebkit2gtk-4.1.so.0') || hasLib('libwebkit2gtk-4.0.so.37');
+    if (!hasWebkit) missing.push('WebKitGTK');
+    if (!hasLib('libgtk-3.so.0')) missing.push('GTK3');
+    if (!(hasLib('libayatana-appindicator3.so.1') || hasLib('libappindicator3.so') || hasLib('libappindicator-gtk3.so'))) {
+      missing.push('AppIndicator3');
+    }
+    const fuseMissing = !hasLib('libfuse.so.2');
+    if (fuseMissing) missing.push('FUSE (libfuse2)');
+    if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) missing.push('GUI session (X11/Wayland)');
+
+    if (!missing.length) return { ok: true, fuseMissing };
+
+    let distro = '';
+    try {
+      const osRelease = fs.readFileSync('/etc/os-release', 'utf8');
+      const idLike = (osRelease.match(/^ID_LIKE=(.*)$/m)?.[1] || '').replace(/"/g, '').toLowerCase();
+      const id = (osRelease.match(/^ID=(.*)$/m)?.[1] || '').replace(/"/g, '').toLowerCase();
+      distro = idLike || id;
+    } catch {}
+
+    console.error('Missing Linux runtime dependencies:');
+    for (const m of missing) console.error(`  - ${m}`);
+    console.error('\nInstall suggestions:');
+    if (distro.includes('debian') || distro.includes('ubuntu')) {
+      console.error('  sudo apt update && sudo apt install -y libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1 libfuse2');
+    } else if (distro.includes('fedora') || distro.includes('rhel') || distro.includes('centos')) {
+      console.error('  sudo dnf install -y webkit2gtk4.1 gtk3 libappindicator-gtk3 fuse');
+    } else if (distro.includes('arch') || distro.includes('manjaro')) {
+      console.error('  sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 fuse2');
+    } else if (distro.includes('suse') || distro.includes('opensuse')) {
+      console.error('  sudo zypper install -y libwebkit2gtk-4_1-0 gtk3-tools libappindicator3-1 libfuse2');
+    } else {
+      console.error('  Install WebKitGTK 4.1+, GTK3, AppIndicator3, and libfuse2 via your package manager.');
+    }
+
+    return { ok: missing.length === 1 && missing[0].startsWith('FUSE'), fuseMissing };
+  } catch (e) {
+    return { ok: true, fuseMissing: false };
+  }
+}
+
 /**
  * Main CLI function
  */
@@ -90,6 +144,17 @@ async function main() {
     return 1;
   }
 
+  // Linux runtime checks
+  let extraEnv = {};
+  if (os.platform() === 'linux') {
+    const { ok, fuseMissing } = linuxRuntimeCheck();
+    if (!ok) return 1;
+    if (fuseMissing) {
+      console.error('\nFUSE missing: will attempt extraction-run fallback.');
+      extraEnv = { APPIMAGE_EXTRACT_AND_RUN: '1' };
+    }
+  }
+
   // Launch the application
   console.log('Launching VLDB-Toolkits...');
 
@@ -117,7 +182,8 @@ async function main() {
 
     const child = spawn(command, commandArgs, {
       stdio: 'inherit',
-      detached: false
+      detached: false,
+      env: { ...process.env, ...extraEnv }
     });
 
     child.on('error', (error) => {

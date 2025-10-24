@@ -55,6 +55,105 @@ function getPlatformKey() {
 }
 
 /**
+ * Try to discover installed Windows executable location.
+ */
+function findWindowsInstalledExe(productName = 'VLDB-Toolkits', exeName = 'VLDB-Toolkits.exe') {
+  if (process.platform !== 'win32') return null;
+
+  const candidates = [];
+  const pf = process.env['ProgramFiles'];
+  const pf86 = process.env['ProgramFiles(x86)'];
+  const localApp = process.env['LOCALAPPDATA'];
+  if (pf) candidates.push(path.join(pf, productName, exeName));
+  if (pf86) candidates.push(path.join(pf86, productName, exeName));
+  if (localApp) candidates.push(path.join(localApp, 'Programs', productName, exeName));
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+
+  // Registry probe for DisplayIcon/InstallLocation
+  try {
+    const { execSync } = require('child_process');
+    const roots = [
+      'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+      'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+      'HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall'
+    ];
+    for (const root of roots) {
+      try {
+        const out = execSync(`reg query "${root}" /s`, { encoding: 'utf8' });
+        const lines = out.split(/\r?\n/);
+        let block = [];
+        for (const line of lines) {
+          if (/^HKEY/i.test(line)) {
+            // process previous block
+            if (block.length) {
+              const blk = block.join('\n');
+              if (/DisplayName\s+REG_\w+\s+.*VLDB-Toolkits/i.test(blk)) {
+                const mIcon = blk.match(/DisplayIcon\s+REG_\w+\s+([^\r\n]+)/i);
+                if (mIcon && mIcon[1]) {
+                  const p = mIcon[1].split(',')[0].trim();
+                  if (fs.existsSync(p)) return p;
+                }
+                const mInst = blk.match(/InstallLocation\s+REG_\w+\s+([^\r\n]+)/i);
+                if (mInst && mInst[1]) {
+                  const p = path.join(mInst[1].trim(), exeName);
+                  if (fs.existsSync(p)) return p;
+                }
+              }
+            }
+            block = [line];
+          } else if (line.trim()) {
+            block.push(line);
+          }
+        }
+        // final block
+        if (block.length) {
+          const blk = block.join('\n');
+          if (/DisplayName\s+REG_\w+\s+.*VLDB-Toolkits/i.test(blk)) {
+            const mIcon = blk.match(/DisplayIcon\s+REG_\w+\s+([^\r\n]+)/i);
+            if (mIcon && mIcon[1]) {
+              const p = mIcon[1].split(',')[0].trim();
+              if (fs.existsSync(p)) return p;
+            }
+            const mInst = blk.match(/InstallLocation\s+REG_\w+\s+([^\r\n]+)/i);
+            if (mInst && mInst[1]) {
+              const p = path.join(mInst[1].trim(), exeName);
+              if (fs.existsSync(p)) return p;
+            }
+          }
+        }
+      } catch (_) { /* ignore */ }
+    }
+  } catch (_) { /* ignore */ }
+
+  return null;
+}
+
+/**
+ * Install MSI package (Windows) with user-level fallback.
+ */
+function installMsi(msiPath) {
+  if (process.platform !== 'win32') return;
+  const { spawnSync } = require('child_process');
+  const logPath = path.join(BINARY_DIR, 'msi-install.log');
+  const attempts = [
+    ['msiexec', '/i', msiPath, '/qn', '/norestart', '/L*V', logPath, 'ALLUSERS=2', 'MSIINSTALLPERUSER=1'],
+    ['msiexec', '/i', msiPath, '/passive', '/norestart', '/L*V', logPath, 'ALLUSERS=2', 'MSIINSTALLPERUSER=1'],
+    ['msiexec', '/i', msiPath]
+  ];
+  for (const cmd of attempts) {
+    try {
+      console.log('Running:', cmd.join(' '));
+      const res = spawnSync(cmd[0], cmd.slice(1), { stdio: 'inherit' });
+      if (res.status === 0) return;
+    } catch (_) { /* ignore */ }
+  }
+  console.warn('Warning: MSI installation may have failed. You might need to install manually.');
+}
+
+/**
  * Best-effort search for the executable inside any .app bundle.
  * Returns the first plausible binary found under *.app/Contents/MacOS/.
  */
@@ -114,6 +213,12 @@ function getBinaryPath() {
     return expectedPath; // last resort; caller will error if missing
   }
 
+  // Windows MSI installs to system dirs. Try to discover actual install location.
+  if (platformKey === 'win32_x64') {
+    const discovered = findWindowsInstalledExe();
+    if (discovered) return discovered;
+  }
+
   return expectedPath;
 }
 
@@ -129,6 +234,10 @@ function isInstalled() {
 
     if (config.isBundle) {
       const discovered = findMacOsAppBinary(BINARY_DIR);
+      return !!(discovered && fs.existsSync(discovered));
+    }
+    if (platformKey === 'win32_x64') {
+      const discovered = findWindowsInstalledExe();
       return !!(discovered && fs.existsSync(discovered));
     }
     return false;
@@ -233,10 +342,12 @@ async function extractArchive(archivePath, extractDir) {
       fs.chmodSync(destPath, 0o755);
     }
   } else if (ext === '.msi') {
-    // MSI installer - for simplicity, just copy it
-    console.log('Note: MSI installer detected. Manual installation may be required.');
+    // Copy for reference and attempt to install
     const destPath = path.join(extractDir, path.basename(archivePath));
     fs.copyFileSync(archivePath, destPath);
+    try {
+      installMsi(archivePath);
+    } catch (_) {}
   } else {
     throw new Error(`Unsupported archive format: ${ext}`);
   }
