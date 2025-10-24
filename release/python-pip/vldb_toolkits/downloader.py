@@ -20,6 +20,37 @@ from .config import (
 )
 
 
+def _find_macos_app_binary(base_dir: Path) -> Optional[Path]:
+    """Best-effort search for the executable inside any .app bundle.
+
+    This is robust to variations in archive structure or binary naming.
+    Returns the first plausible binary found under *.app/Contents/MacOS/.
+    """
+    try:
+        # Search recursively for any .app bundle
+        for app_dir in base_dir.rglob("*.app"):
+            macos_dir = app_dir / "Contents" / "MacOS"
+            if macos_dir.is_dir():
+                # Prefer files with executable bit set; fallback to any file
+                executables = []
+                others = []
+                for child in macos_dir.iterdir():
+                    if child.is_file():
+                        mode = child.stat().st_mode
+                        if mode & 0o111:
+                            executables.append(child)
+                        else:
+                            others.append(child)
+                if executables:
+                    return executables[0]
+                if others:
+                    return others[0]
+    except Exception:
+        # On any unexpected error, fall back to default logic
+        pass
+    return None
+
+
 def get_platform_key() -> str:
     """Get the platform key for current system"""
     system = platform.system().lower()
@@ -51,21 +82,54 @@ def get_platform_key() -> str:
 
 
 def get_binary_path() -> Path:
-    """Get the path to the executable for current platform"""
+    """Get the path to the executable for current platform.
+
+    For macOS bundles, if the expected path does not exist, search for any
+    app bundle's MacOS binary to be resilient to naming/packaging variations.
+    """
     platform_key = get_platform_key()
     config = PLATFORM_BINARIES[platform_key]
 
+    # Direct path from configuration
+    expected_path = BINARY_DIR / config["executable_path"]
+
     if config["is_bundle"]:
-        return BINARY_DIR / config["executable_path"]
-    else:
-        executable_name = config["executable_path"]
-        return BINARY_DIR / executable_name
+        # If expected path exists, return it; otherwise attempt discovery
+        if expected_path.exists():
+            return expected_path
+
+        # Fallback: discover any .app/Contents/MacOS/* binary
+        discovered = _find_macos_app_binary(BINARY_DIR)
+        if discovered is not None:
+            return discovered
+
+        # As a last resort, return the expected path (will fail later with a clear error)
+        return expected_path
+
+    # Non-bundle platforms
+    return expected_path
 
 
 def is_installed() -> bool:
-    """Check if binary is already installed"""
-    binary_path = get_binary_path()
-    return binary_path.exists() and binary_path.is_file()
+    """Check if binary is already installed.
+
+    For macOS bundles, treat presence of any discovered bundle binary as installed.
+    """
+    try:
+        binary_path = get_binary_path()
+        if binary_path.exists() and binary_path.is_file():
+            return True
+
+        # If expected path didn't exist for a bundle, also check for any .app
+        platform_key = get_platform_key()
+        if PLATFORM_BINARIES[platform_key]["is_bundle"]:
+            discovered = _find_macos_app_binary(BINARY_DIR)
+            return discovered is not None and discovered.exists()
+
+        return False
+    except Exception:
+        # Be conservative on errors; treat as not installed to trigger install flow
+        return False
 
 
 def get_installed_version() -> Optional[str]:

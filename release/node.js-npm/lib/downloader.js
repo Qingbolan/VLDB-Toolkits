@@ -55,25 +55,86 @@ function getPlatformKey() {
 }
 
 /**
+ * Best-effort search for the executable inside any .app bundle.
+ * Returns the first plausible binary found under *.app/Contents/MacOS/.
+ */
+function findMacOsAppBinary(baseDir) {
+  try {
+    // Recursively walk baseDir to find .app bundles
+    const stack = [baseDir];
+    while (stack.length) {
+      const current = stack.pop();
+      const entries = fs.readdirSync(current, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(current, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name.endsWith('.app')) {
+            const macosDir = path.join(fullPath, 'Contents', 'MacOS');
+            if (fs.existsSync(macosDir) && fs.statSync(macosDir).isDirectory()) {
+              const files = fs.readdirSync(macosDir);
+              // Prefer executable files
+              const executables = [];
+              const others = [];
+              for (const f of files) {
+                const p = path.join(macosDir, f);
+                if (fs.statSync(p).isFile()) {
+                  const mode = fs.statSync(p).mode;
+                  if (mode & 0o111) executables.push(p);
+                  else others.push(p);
+                }
+              }
+              if (executables.length > 0) return executables[0];
+              if (others.length > 0) return others[0];
+            }
+          } else {
+            stack.push(fullPath);
+          }
+        }
+      }
+    }
+  } catch (_) {
+    // Ignore errors and fall back
+  }
+  return null;
+}
+
+/**
  * Get the path to the executable for current platform
  */
 function getBinaryPath() {
   const platformKey = getPlatformKey();
   const config = PLATFORM_BINARIES[platformKey];
 
+  const expectedPath = path.join(BINARY_DIR, config.executablePath);
+
   if (config.isBundle) {
-    return path.join(BINARY_DIR, config.executablePath);
-  } else {
-    return path.join(BINARY_DIR, config.executablePath);
+    if (fs.existsSync(expectedPath)) return expectedPath;
+    const discovered = findMacOsAppBinary(BINARY_DIR);
+    if (discovered) return discovered;
+    return expectedPath; // last resort; caller will error if missing
   }
+
+  return expectedPath;
 }
 
 /**
  * Check if binary is already installed
  */
 function isInstalled() {
-  const binaryPath = getBinaryPath();
-  return fs.existsSync(binaryPath);
+  try {
+    const platformKey = getPlatformKey();
+    const config = PLATFORM_BINARIES[platformKey];
+    const binaryPath = getBinaryPath();
+    if (fs.existsSync(binaryPath)) return true;
+
+    if (config.isBundle) {
+      const discovered = findMacOsAppBinary(BINARY_DIR);
+      return !!(discovered && fs.existsSync(discovered));
+    }
+    return false;
+  } catch (_) {
+    return false;
+  }
 }
 
 /**

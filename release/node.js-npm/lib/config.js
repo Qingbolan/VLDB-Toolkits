@@ -6,7 +6,7 @@ const path = require('path');
 const os = require('os');
 
 // Version
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 // GitHub repository
 const GITHUB_REPO = 'Qingbolan/VLDB-Toolkits'; // TODO: Update with your repo
