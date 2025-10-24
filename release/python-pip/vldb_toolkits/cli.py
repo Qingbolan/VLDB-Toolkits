@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import platform
+from pathlib import Path
 from .downloader import check_and_install, get_binary_path, is_installed
 from .config import VERSION
 
