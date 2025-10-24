@@ -2,6 +2,7 @@
 
 import sys
 import os
+import shutil
 import subprocess
 import platform
 from .downloader import check_and_install, get_binary_path, is_installed
@@ -20,10 +21,167 @@ Usage:
   vldb-toolkits --version Show version information
   vldb-toolkits --install Force reinstall the binary
   vldb-toolkits --path    Show binary installation path
+  vldb-toolkits --fix-path         Windows: add Scripts to PATH and App Paths
+  vldb-toolkits --register-app     Windows: register App Paths only
+  vldb-toolkits --unregister       Windows: remove App Paths and PATH entry
 
 Examples:
   vldb-toolkits          # Start the application
     """)
+
+
+# ----------------------
+# Windows PATH utilities
+# ----------------------
+def _win_get_scripts_dirs():
+    """Return likely Scripts directories for current Python/user.
+
+    Includes both sysconfig 'scripts' and user base Scripts.
+    """
+    dirs = []
+    try:
+        import sysconfig
+        p = sysconfig.get_paths().get("scripts")
+        if p:
+            dirs.append(Path(p))
+    except Exception:
+        pass
+    try:
+        import site
+        user_base = getattr(site, "USER_BASE", None) or site.getusersitepackages()
+        if user_base:
+            ub = Path(user_base)
+            # If getusersitepackages() returned .../site-packages, go up one to get base
+            if ub.name == "site-packages":
+                ub = ub.parent.parent
+            dirs.append(ub / "Scripts")
+    except Exception:
+        pass
+    # Deduplicate
+    unique = []
+    for d in dirs:
+        if d and d not in unique:
+            unique.append(d)
+    return unique
+
+
+def _win_add_to_user_path(dir_path: Path):
+    import winreg  # type: ignore
+    dir_str = str(dir_path)
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE) as k:
+        try:
+            current, _ = winreg.QueryValueEx(k, "Path")
+        except FileNotFoundError:
+            current = ""
+        parts = [p for p in current.split(";") if p]
+        if dir_str in parts:
+            return False
+        parts.append(dir_str)
+        new_val = ";".join(parts)
+        winreg.SetValueEx(k, "Path", 0, winreg.REG_EXPAND_SZ, new_val)
+    # Broadcast environment change (best-effort)
+    try:
+        import ctypes
+        HWND_BROADCAST = 0xFFFF
+        WM_SETTINGCHANGE = 0x001A
+        ctypes.windll.user32.SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", 0x0002, 5000, None)
+    except Exception:
+        pass
+    return True
+
+
+def _win_register_app_path(exe_name: str, target_path: Path):
+    import winreg  # type: ignore
+    key_path = rf"Software\Microsoft\Windows\CurrentVersion\App Paths\{exe_name}"
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, key_path) as k:
+        winreg.SetValueEx(k, None, 0, winreg.REG_SZ, str(target_path))
+        # Add the containing directory to the lookup Path for this app
+        winreg.SetValueEx(k, "Path", 0, winreg.REG_SZ, str(target_path.parent))
+
+
+def _windows_setup_shortcuts(register_app: bool = True, fix_path: bool = True):
+    """Set up Windows conveniences:
+    - Add Scripts dir to user PATH (HKCU Environment)
+    - Register App Paths for vldb-toolkits.exe and vldb_toolkits.exe
+    """
+    if platform.system() != "Windows":
+        return
+    candidates = _win_get_scripts_dirs()
+    scripts_dir = next((d for d in candidates if d and d.exists()), None)
+    if not scripts_dir:
+        return
+    # Fix PATH
+    if fix_path:
+        try:
+            _win_add_to_user_path(scripts_dir)
+        except Exception:
+            pass
+    # Register App Paths
+    if register_app:
+        for exe in ("vldb-toolkits.exe", "vldb_toolkits.exe"):
+            p = scripts_dir / exe
+            if p.exists():
+                try:
+                    _win_register_app_path(exe, p)
+                except Exception:
+                    pass
+
+
+def _win_remove_from_user_path(dir_path: Path):
+    import winreg  # type: ignore
+    dir_norm = str(dir_path).rstrip("\\/").lower()
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE) as k:
+        try:
+            current, _ = winreg.QueryValueEx(k, "Path")
+        except FileNotFoundError:
+            return False
+        parts = [p for p in current.split(";") if p]
+        new_parts = []
+        changed = False
+        for p in parts:
+            if p.rstrip("\\/").lower() == dir_norm:
+                changed = True
+                continue
+            new_parts.append(p)
+        if changed:
+            winreg.SetValueEx(k, "Path", 0, winreg.REG_EXPAND_SZ, ";".join(new_parts))
+            try:
+                import ctypes
+                HWND_BROADCAST = 0xFFFF
+                WM_SETTINGCHANGE = 0x001A
+                ctypes.windll.user32.SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", 0x0002, 5000, None)
+            except Exception:
+                pass
+        return changed
+
+
+def _win_delete_app_path(exe_name: str):
+    import winreg  # type: ignore
+    key_path = rf"Software\Microsoft\Windows\CurrentVersion\App Paths\{exe_name}"
+    try:
+        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key_path)
+        return True
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return False
+
+
+def _windows_cleanup_shortcuts():
+    if platform.system() != "Windows":
+        return
+    candidates = _win_get_scripts_dirs()
+    scripts_dir = next((d for d in candidates if d and d.exists()), None)
+    if scripts_dir:
+        try:
+            _win_remove_from_user_path(scripts_dir)
+        except Exception:
+            pass
+    for exe in ("vldb-toolkits.exe", "vldb_toolkits.exe"):
+        try:
+            _win_delete_app_path(exe)
+        except Exception:
+            pass
 
 
 def main():
@@ -47,6 +205,33 @@ def main():
         except Exception as e:
             print(f"Installation failed: {e}", file=sys.stderr)
             return 1
+
+    # Windows helpers: PATH + App Paths registration
+    if platform.system() == "Windows":
+        if "--fix-path" in args or "--register-app" in args:
+            try:
+                _windows_setup_shortcuts(register_app=True, fix_path=("--fix-path" in args))
+                print("Windows shortcuts registered.")
+                if "--register-app" in args and "--fix-path" not in args:
+                    return 0
+            except Exception as e:
+                print(f"Windows setup failed: {e}", file=sys.stderr)
+                return 1
+
+        if "--unregister" in args:
+            try:
+                _windows_cleanup_shortcuts()
+                print("Windows shortcuts unregistered.")
+                return 0
+            except Exception as e:
+                print(f"Windows unregister failed: {e}", file=sys.stderr)
+                return 1
+
+        # Silent best-effort registration to improve UX on first run
+        try:
+            _windows_setup_shortcuts(register_app=True, fix_path=True)
+        except Exception:
+            pass
 
     if "--path" in args:
         if is_installed():

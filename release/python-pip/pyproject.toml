@@ -40,6 +40,10 @@ vldb_toolkits = "vldb_toolkits.cli:main"
 
 [tool.setuptools]
 packages = ["vldb_toolkits"]
+include-package-data = true
 
 [tool.setuptools.package-data]
 vldb_toolkits = ["py.typed"]
+
+[tool.setuptools.data-files]
+"." = ["vldb_toolkits.pth"]

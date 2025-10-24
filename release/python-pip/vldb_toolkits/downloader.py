@@ -365,7 +365,7 @@ def download_and_install():
 
     download_with_progress(download_url, download_path)
 
-    # Extract if needed
+    # Extract or place binary if needed
     if PLATFORM_BINARIES[platform_key]["is_bundle"] or download_path.suffix in (".gz", ".zip"):
         extract_archive(download_path, BINARY_DIR)
         download_path.unlink()  # Remove archive after extraction
@@ -376,6 +376,19 @@ def download_and_install():
             _install_msi(download_path)
         finally:
             # Keep MSI file for troubleshooting; do not delete
+            pass
+    elif download_path.suffix == ".AppImage":
+        # Rename AppImage to expected executable name and make it executable
+        target_path = BINARY_DIR / PLATFORM_BINARIES[platform_key]["executable_path"]
+        try:
+            if target_path.exists():
+                target_path.unlink()
+        except Exception:
+            pass
+        shutil.move(str(download_path), target_path)
+        try:
+            os.chmod(target_path, 0o755)
+        except Exception:
             pass
 
     # Make executable on Unix-like systems

@@ -446,11 +446,28 @@ async function downloadAndInstall(force = false) {
 
   await downloadFile(url, downloadPath);
 
-  // Extract if needed
+  // Extract/place if needed
   const config = PLATFORM_BINARIES[platformKey];
-  if (config.isBundle || path.extname(downloadPath) === '.gz') {
+  const ext = path.extname(downloadPath);
+  if (config.isBundle || ext === '.gz' || ext === '.zip' || ext === '.msi' || ext === '.AppImage' || ext === '.exe') {
     await extractArchive(downloadPath, BINARY_DIR);
-    fs.unlinkSync(downloadPath); // Remove archive after extraction
+    // For archives and MSI we keep/remove accordingly inside extractArchive; for others it's already moved
+    try { fs.unlinkSync(downloadPath); } catch (_) {}
+  }
+
+  // Rename AppImage to expected executable name
+  if (ext === '.AppImage') {
+    const expected = getBinaryPath();
+    const src = path.join(BINARY_DIR, path.basename(downloadPath));
+    try {
+      if (fs.existsSync(src) && src !== expected) {
+        try { fs.unlinkSync(expected); } catch (_) {}
+        fs.renameSync(src, expected);
+      }
+      if (process.platform !== 'win32') {
+        try { fs.chmodSync(expected, 0o755); } catch (_) {}
+      }
+    } catch (_) { /* ignore */ }
   }
 
   // Make executable on Unix-like systems
