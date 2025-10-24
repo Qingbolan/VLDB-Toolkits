@@ -73,13 +73,6 @@
     "macOS": {
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "11.0",
-      "dmg": {
-        "background": null,
-        "window": {
-          "width": 600,
-          "height": 400
-        }
-      },
       "frameworks": [],
       "signingIdentity": null
     },
@@ -95,15 +88,8 @@
         "template": null
       },
       "nsis": {
-        "displayLanguageSelector": false,
-        "languages": ["English", "SimpChinese"],
         "installerIcon": "icons/icon.ico",
-        "headerImage": null,
-        "sidebarImage": null,
-        "installMode": "perMachine",
-        "allowDowngrades": false,
-        "compression": "lzma",
-        "template": "installer.nsi"
+        "installMode": "perMachine"
       }
     }
   }
