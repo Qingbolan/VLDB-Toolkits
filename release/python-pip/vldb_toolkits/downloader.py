@@ -182,11 +182,26 @@ def extract_archive(archive_path: Path, extract_dir: Path):
         with zipfile.ZipFile(archive_path, "r") as zip_ref:
             zip_ref.extractall(extract_dir)
     elif archive_path.suffix in (".AppImage", ".exe"):
-        # Single executable, just move it
-        shutil.move(str(archive_path), extract_dir / archive_path.name)
+        # Single executable: ensure it resides at extract_dir/filename
+        dest = extract_dir / archive_path.name
+        try:
+            # If it's already at destination, skip
+            if archive_path.resolve() == dest.resolve():
+                pass
+            else:
+                shutil.move(str(archive_path), dest)
+        except Exception:
+            # Best-effort; ignore if same file
+            pass
     elif archive_path.suffix == ".msi":
         # For Windows MSI, copy to extract_dir for reference/rehydration and install later
-        shutil.copy(str(archive_path), extract_dir / archive_path.name)
+        dest = extract_dir / archive_path.name
+        try:
+            if archive_path.resolve() != dest.resolve():
+                shutil.copy(str(archive_path), dest)
+        except Exception:
+            # If same file or resolve fails, ignore
+            pass
     else:
         raise RuntimeError(f"Unsupported archive format: {archive_path.suffix}")
 
@@ -370,8 +385,7 @@ def download_and_install():
         extract_archive(download_path, BINARY_DIR)
         download_path.unlink()  # Remove archive after extraction
     elif download_path.suffix == ".msi":
-        # Keep MSI in place and attempt automatic installation
-        extract_archive(download_path, BINARY_DIR)
+        # MSI already downloaded into BINARY_DIR; no copy needed. Install directly.
         try:
             _install_msi(download_path)
         finally:

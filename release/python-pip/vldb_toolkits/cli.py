@@ -26,6 +26,8 @@ Usage:
   vldb-toolkits --fix-path         Windows: add Scripts to PATH and App Paths
   vldb-toolkits --register-app     Windows: register App Paths only
   vldb-toolkits --unregister       Windows: remove App Paths and PATH entry
+  vldb-toolkits --doctor           Linux: check runtime deps and exit
+  vldb-toolkits --no-check         Linux: skip runtime checks (warn-only)
 
 Examples:
   vldb-toolkits          # Start the application
@@ -286,44 +288,75 @@ def main():
             missing.append("GUI session (X11/Wayland)")
         return missing, fuse_missing
 
-    if platform.system() == "Linux":
-        missing, fuse_missing = _linux_runtime_check()
-        if missing:
-            # Try to give distro-specific suggestions
+    # Doctor mode (report-only)
+    if "--doctor" in args and platform.system() == "Linux":
+        missing, _fuse_missing = _linux_runtime_check()
+        if not missing:
+            print("Linux runtime check: OK")
+            return 0
+        # Print detailed suggestions then exit success (report-only)
+        try:
+            with open("/etc/os-release", "r", encoding="utf-8") as f:
+                data = f.read()
+            def _get(field: str) -> str:
+                import re
+                m = re.search(rf"^{field}=(.*)$", data, re.MULTILINE)
+                return m.group(1).strip().strip('"') if m else ""
+            distro = (_get("ID_LIKE") or _get("ID")).lower()
+        except Exception:
             distro = ""
-            try:
-                with open("/etc/os-release", "r", encoding="utf-8") as f:
-                    data = f.read()
-                def _get(field: str) -> str:
-                    import re
-                    m = re.search(rf"^{field}=(.*)$", data, re.MULTILINE)
-                    return m.group(1).strip().strip('"') if m else ""
-                distro = (_get("ID_LIKE") or _get("ID")).lower()
-            except Exception:
-                pass
+        print("Missing Linux runtime dependencies:")
+        for item in missing:
+            print(f"  - {item}")
+        print("\nInstall suggestions:")
+        if "debian" in distro or "ubuntu" in distro:
+            print("  sudo apt update && sudo apt install -y libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1 libfuse2")
+        elif "fedora" in distro or "rhel" in distro or "centos" in distro:
+            print("  sudo dnf install -y webkit2gtk4.1 gtk3 libappindicator-gtk3 fuse")
+        elif "arch" in distro or "manjaro" in distro:
+            print("  sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 fuse2")
+        elif "suse" in distro or "opensuse" in distro:
+            print("  sudo zypper install -y libwebkit2gtk-4_1-0 gtk3-tools libappindicator3-1 libfuse2")
+        else:
+            print("  Install WebKitGTK 4.1+, GTK3, AppIndicator3, and libfuse2 via your package manager.")
+        return 0
 
-            print("Missing Linux runtime dependencies:", file=sys.stderr)
-            for item in missing:
-                print(f"  - {item}", file=sys.stderr)
-
-            print("\nInstall suggestions:", file=sys.stderr)
-            if "debian" in distro or "ubuntu" in distro:
-                print("  sudo apt update && sudo apt install -y libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1 libfuse2", file=sys.stderr)
-            elif "fedora" in distro or "rhel" in distro or "centos" in distro:
-                print("  sudo dnf install -y webkit2gtk4.1 gtk3 libappindicator-gtk3 fuse", file=sys.stderr)
-            elif "arch" in distro or "manjaro" in distro:
-                print("  sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 fuse2", file=sys.stderr)
-            elif "suse" in distro or "opensuse" in distro:
-                print("  sudo zypper install -y libwebkit2gtk-4_1-0 gtk3-tools libappindicator3-1 libfuse2", file=sys.stderr)
-            else:
-                print("  Install WebKitGTK 4.1+, GTK3, AppIndicator3, and libfuse2 via your package manager.", file=sys.stderr)
-
-            # If only FUSE is missing, we can still try to run by extracting AppImage
-            if missing == ["FUSE (libfuse2)"]:
-                print("\nFUSE missing: will attempt extraction-run fallback.", file=sys.stderr)
-            else:
-                print("\nAborting launch due to missing dependencies.", file=sys.stderr)
-                return 1
+    # Non-strict check before launch (warn-only, unless strict enabled)
+    if platform.system() == "Linux":
+        skip_checks = ("--no-check" in args) or bool(os.environ.get("VLDB_TOOLKITS_NO_CHECKS"))
+        strict = bool(os.environ.get("VLDB_TOOLKITS_STRICT_CHECKS"))
+        if not skip_checks:
+            missing, fuse_missing = _linux_runtime_check()
+            if missing:
+                try:
+                    with open("/etc/os-release", "r", encoding="utf-8") as f:
+                        data = f.read()
+                    def _get(field: str) -> str:
+                        import re
+                        m = re.search(rf"^{field}=(.*)$", data, re.MULTILINE)
+                        return m.group(1).strip().strip('"') if m else ""
+                    distro = (_get("ID_LIKE") or _get("ID")).lower()
+                except Exception:
+                    distro = ""
+                print("Missing Linux runtime dependencies:", file=sys.stderr)
+                for item in missing:
+                    print(f"  - {item}", file=sys.stderr)
+                print("\nInstall suggestions:", file=sys.stderr)
+                if "debian" in distro or "ubuntu" in distro:
+                    print("  sudo apt update && sudo apt install -y libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1 libfuse2", file=sys.stderr)
+                elif "fedora" in distro or "rhel" in distro or "centos" in distro:
+                    print("  sudo dnf install -y webkit2gtk4.1 gtk3 libappindicator-gtk3 fuse", file=sys.stderr)
+                elif "arch" in distro or "manjaro" in distro:
+                    print("  sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 fuse2", file=sys.stderr)
+                elif "suse" in distro or "opensuse" in distro:
+                    print("  sudo zypper install -y libwebkit2gtk-4_1-0 gtk3-tools libappindicator3-1 libfuse2", file=sys.stderr)
+                else:
+                    print("  Install WebKitGTK 4.1+, GTK3, AppIndicator3, and libfuse2 via your package manager.", file=sys.stderr)
+                if missing == ["FUSE (libfuse2)"]:
+                    print("\nFUSE missing: will attempt extraction-run fallback.", file=sys.stderr)
+                elif strict:
+                    print("\nAborting launch due to missing dependencies (strict mode).", file=sys.stderr)
+                    return 1
 
     # Launch the application
     try:
@@ -343,7 +376,9 @@ def main():
             except Exception:
                 pass  # Silently ignore if xattr command fails
 
-            subprocess.run(["open", str(app_bundle)] + args, check=True)
+            # Filter out wrapper-only args
+            app_args = [a for a in args if a not in {"--no-check", "--doctor", "--fix-path", "--register-app", "--unregister", "--install", "--path", "--help", "-h", "--version", "-v"}]
+            subprocess.run(["open", str(app_bundle)] + app_args, check=True)
         else:
             # On Linux, if FUSE is missing, try extract-and-run fallback for AppImage
             env = os.environ.copy()
@@ -355,7 +390,8 @@ def main():
                     fuse_missing = False
                 if fuse_missing:
                     env["APPIMAGE_EXTRACT_AND_RUN"] = "1"
-            subprocess.run([str(binary_path)] + args, check=True, env=env)
+            app_args = [a for a in args if a not in {"--no-check", "--doctor", "--fix-path", "--register-app", "--unregister", "--install", "--path", "--help", "-h", "--version", "-v"}]
+            subprocess.run([str(binary_path)] + app_args, check=True, env=env)
 
         return 0
 

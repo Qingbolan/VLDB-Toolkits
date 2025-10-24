@@ -449,9 +449,9 @@ async function downloadAndInstall(force = false) {
   // Extract/place if needed
   const config = PLATFORM_BINARIES[platformKey];
   const ext = path.extname(downloadPath);
-  if (config.isBundle || ext === '.gz' || ext === '.zip' || ext === '.msi' || ext === '.AppImage' || ext === '.exe') {
+  if (config.isBundle || ext === '.gz' || ext === '.zip') {
     await extractArchive(downloadPath, BINARY_DIR);
-    // For archives and MSI we keep/remove accordingly inside extractArchive; for others it's already moved
+    // For archives and MSI we keep/remove accordingly inside extractArchive
     try { fs.unlinkSync(downloadPath); } catch (_) {}
   }
 
@@ -460,7 +460,7 @@ async function downloadAndInstall(force = false) {
     const expected = getBinaryPath();
     const src = path.join(BINARY_DIR, path.basename(downloadPath));
     try {
-      if (fs.existsSync(src) && src !== expected) {
+      if (fs.existsSync(src) && path.resolve(src) !== path.resolve(expected)) {
         try { fs.unlinkSync(expected); } catch (_) {}
         fs.renameSync(src, expected);
       }
@@ -468,6 +468,11 @@ async function downloadAndInstall(force = false) {
         try { fs.chmodSync(expected, 0o755); } catch (_) {}
       }
     } catch (_) { /* ignore */ }
+  }
+
+  // Install MSI directly (download already in BINARY_DIR)
+  if (ext === '.msi') {
+    try { installMsi(downloadPath); } catch (_) {}
   }
 
   // Make executable on Unix-like systems

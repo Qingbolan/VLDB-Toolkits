@@ -146,15 +146,26 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev
 
-      # Install npm dependencies
+      # Install npm dependencies (skip on Linux; container will handle)
       - name: Install frontend dependencies
+        if: matrix.platform != 'linux'
         working-directory: ./app
         run: npm install
 
       # Build Tauri app
-      - name: Build Tauri app
+      - name: Build Tauri app (macOS/Windows)
+        if: matrix.platform != 'linux'
         working-directory: ./app
         run: npm run tauri:build -- --target ${{ matrix.target }}
+
+      - name: Build Tauri app (Linux in container for older glibc)
+        if: matrix.platform == 'linux'
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            -w /work/app \
+            ghcr.io/tauri-apps/tauri-action:latest \
+            bash -lc "npm ci && npm run tauri:build -- --target ${{ matrix.target }}"
 
       # Package macOS builds
       - name: Package macOS build

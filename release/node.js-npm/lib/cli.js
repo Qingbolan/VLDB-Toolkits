@@ -30,6 +30,8 @@ Usage:
   vldb-toolkits --version Show version information
   vldb-toolkits --install Force reinstall the binary
   vldb-toolkits --path    Show binary installation path
+  vldb-toolkits --doctor  Linux: check runtime deps and exit
+  vldb-toolkits --no-check  Linux: skip runtime checks (warn-only)
 
 Examples:
   vldb-toolkits          # Start the application
@@ -147,11 +149,19 @@ async function main() {
   // Linux runtime checks
   let extraEnv = {};
   if (os.platform() === 'linux') {
-    const { ok, fuseMissing } = linuxRuntimeCheck();
-    if (!ok) return 1;
-    if (fuseMissing) {
-      console.error('\nFUSE missing: will attempt extraction-run fallback.');
-      extraEnv = { APPIMAGE_EXTRACT_AND_RUN: '1' };
+    const skipChecks = args.includes('--no-check') || !!process.env.VLDB_TOOLKITS_NO_CHECKS;
+    const strict = !!process.env.VLDB_TOOLKITS_STRICT_CHECKS;
+    if (args.includes('--doctor')) {
+      linuxRuntimeCheck();
+      return 0;
+    }
+    if (!skipChecks) {
+      const { ok, fuseMissing } = linuxRuntimeCheck();
+      if (!ok && strict) return 1;
+      if (fuseMissing) {
+        console.error('\nFUSE missing: will attempt extraction-run fallback.');
+        extraEnv = { APPIMAGE_EXTRACT_AND_RUN: '1' };
+      }
     }
   }
 
@@ -180,7 +190,11 @@ async function main() {
       commandArgs = [appBundle, ...args];
     }
 
-    const child = spawn(command, commandArgs, {
+    // Filter wrapper-only args
+    const wrapperFlags = new Set(['--no-check', '--doctor', '--install', '--path', '--help', '-h', '--version', '-v']);
+    const filteredArgs = commandArgs.filter(a => !wrapperFlags.has(a));
+
+    const child = spawn(command, filteredArgs, {
       stdio: 'inherit',
       detached: false,
       env: { ...process.env, ...extraEnv }
