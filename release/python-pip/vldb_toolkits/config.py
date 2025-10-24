@@ -3,7 +3,7 @@
 from pathlib import Path
 
 # Version
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 
 # GitHub repository
 GITHUB_REPO = "Qingbolan/VLDB-Toolkits"

@@ -1,4 +1,5 @@
 """Command-line interface for VLDB-Toolkits"""
+from __future__ import annotations
 
 import sys
 import os
