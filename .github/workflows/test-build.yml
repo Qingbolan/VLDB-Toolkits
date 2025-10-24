@@ -146,7 +146,7 @@ jobs:
           docker run --rm \
             -v "${{ github.workspace }}:/work" \
             -w /work/app \
-            ghcr.io/tauri-apps/tauri-action:v0 \
+            ghcr.io/tauri-apps/tauri-action:latest \
             bash -lc "npm ci && npm run tauri:build -- --target ${{ matrix.target }}"
 
       # Package macOS builds
