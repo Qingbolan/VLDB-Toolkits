@@ -13,6 +13,9 @@ jobs:
   build:
     name: Build ${{ matrix.platform }} (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      packages: read
 
     strategy:
       fail-fast: false
@@ -127,13 +130,23 @@ jobs:
         working-directory: ./app
         run: npm run tauri:build -- --target ${{ matrix.target }}
 
+      # Authenticate to GHCR to avoid denied errors when pulling the image
+      # and ensure consistent access to public packages.
+      - name: Login to GitHub Container Registry
+        if: matrix.platform == 'linux'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build Tauri app (Linux in container for older glibc)
         if: matrix.platform == 'linux'
         run: |
           docker run --rm \
             -v "${{ github.workspace }}:/work" \
             -w /work/app \
-            ghcr.io/tauri-apps/tauri-action:latest \
+            ghcr.io/tauri-apps/tauri-action:v0 \
             bash -lc "npm ci && npm run tauri:build -- --target ${{ matrix.target }}"
 
       # Package macOS builds
