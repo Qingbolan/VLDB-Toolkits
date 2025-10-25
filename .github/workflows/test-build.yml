@@ -30,7 +30,7 @@ jobs:
 
           - platform: macos
             arch: x86_64
-            os: macos-latest
+            os: macos-13
             target: x86_64-apple-darwin
             asset_name: VLDB-Toolkits_macos_x86_64.app.tar.gz
 
@@ -103,13 +103,12 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Linux dependencies
+      # Linux dependencies (attempt 4.1, fallback to 4.0)
       - name: Install Linux dependencies
         if: matrix.platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
             build-essential \
             curl \
             wget \
@@ -117,6 +116,7 @@ jobs:
             libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev || sudo apt-get install -y libwebkit2gtk-4.0-dev || true
 
       # Install npm dependencies (skip on Linux; container will handle)
       - name: Install frontend dependencies
@@ -154,9 +154,24 @@ jobs:
       - name: Package macOS build
         if: matrix.platform == 'macos'
         run: |
-          cd app/src-tauri/target/${{ matrix.target }}/release/bundle/macos
-          tar -czf ${{ matrix.asset_name }} VLDB-Toolkits.app
-          mv ${{ matrix.asset_name }} ${{ github.workspace }}/
+          set -e
+          BUNDLE_DIR="app/src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "Error: Bundle directory not found: $BUNDLE_DIR"
+            find app/src-tauri/target/${{ matrix.target }}/release -maxdepth 3 -type d | sed -n '1,200p'
+            exit 1
+          fi
+          cd "$BUNDLE_DIR"
+          echo "Contents of macOS bundle directory:"
+          ls -la
+          APP_BUNDLE=$(find . -maxdepth 1 -name "*.app" -print -quit)
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "Error: No .app bundle found"
+            exit 1
+          fi
+          echo "Packaging $APP_BUNDLE -> ${{ matrix.asset_name }}"
+          tar -czf "${{ matrix.asset_name }}" "$APP_BUNDLE"
+          mv "${{ matrix.asset_name }}" "${{ github.workspace }}/"
 
       # Find and rename Windows build
       - name: Package Windows build
