@@ -125,9 +125,8 @@ jobs:
             librsvg2-dev
           sudo apt-get install -y libwebkit2gtk-4.1-dev || sudo apt-get install -y libwebkit2gtk-4.0-dev || true
 
-      # Install npm dependencies (skip on Linux; container will handle)
+      # Install npm dependencies (required for all platforms)
       - name: Install frontend dependencies
-        if: matrix.platform != 'linux'
         working-directory: ./app
         run: npm install
 
@@ -154,8 +153,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: ./app
-          tauriScript: tauri
-          args: build --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }}
 
       # Package macOS builds
       - name: Package macOS build

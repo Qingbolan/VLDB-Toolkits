@@ -187,8 +187,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: ./app
-          tauriScript: tauri
-          args: build --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }}
 
       # Package macOS builds
       - name: Package macOS build
